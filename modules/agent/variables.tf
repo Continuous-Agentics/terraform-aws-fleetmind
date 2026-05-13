@@ -68,8 +68,14 @@ variable "fleetmind_version" {
 
 # ── IAM policy inputs ────────────────────────────────────────────────────────
 
+variable "context_store_enabled" {
+  description = "Whether to grant the agent role read/write on the DynamoDB ContextStore table. Must be a static bool (not derived from a computed resource attribute) so Terraform can evaluate it at plan time."
+  type        = bool
+  default     = false
+}
+
 variable "context_store_table_arn" {
-  description = "ARN of the DynamoDB ContextStore table. When non-empty, the agent role gets read/write on this table. Pass an empty string when the fleet uses a non-DDB context-store backend (e.g. RDS)."
+  description = "ARN of the DynamoDB ContextStore table. Used in the IAM policy when context_store_enabled = true. Pass empty string when context_store_enabled = false."
   type        = string
   default     = ""
 }

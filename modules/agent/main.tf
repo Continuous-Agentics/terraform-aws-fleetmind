@@ -86,7 +86,7 @@ resource "aws_iam_role_policy" "secrets" {
 }
 
 resource "aws_iam_role_policy" "dynamodb" {
-  count = var.context_store_table_arn == "" ? 0 : 1
+  count = var.context_store_enabled ? 1 : 0
 
   name = "${var.fleet_name}-${var.name}-dynamodb"
   role = aws_iam_role.agent.id
@@ -241,7 +241,10 @@ resource "aws_instance" "agent" {
     encrypted             = true
   }
 
-  user_data = templatefile("${path.module}/user_data/agent_bootstrap.sh.tpl", {
+  # user_data_base64 + base64gzip keeps the rendered script under EC2's 16 KB
+  # user_data limit while remaining fully transparent to the instance at boot.
+  user_data_replace_on_change = true
+  user_data_base64 = base64gzip(templatefile("${path.module}/user_data/agent_bootstrap.sh.tpl", {
     fleet_name        = var.fleet_name
     agent_id          = var.name
     agent_port        = var.agent_port
@@ -249,9 +252,7 @@ resource "aws_instance" "agent" {
     node_version      = var.node_version
     aws_region        = var.aws_region
     fleetmind_version = var.fleetmind_version
-  })
-
-  user_data_replace_on_change = true
+  }))
 
   tags = {
     Name                   = "${var.fleet_name}-${var.name}"

@@ -70,10 +70,9 @@ module "agent" {
   node_version      = var.node_version
   fleetmind_version = var.fleetmind_version
 
-  # Empty string when no DDB backend is active (today: never, since the
-  # var.context_store_backend validation pins it to "dynamodb"). The 'one()'
-  # idiom is null-safe: returns null when count = 0, avoiding [0]-on-empty-list
-  # errors if/when the validation widens to allow other backends.
+  # Pass a static bool for count (must be known at plan time — cannot use a
+  # computed ARN). The ARN is passed separately for the policy document body.
+  context_store_enabled       = var.context_store_backend == "dynamodb"
   context_store_table_arn     = coalesce(one(aws_dynamodb_table.context_store[*].arn), "")
   secret_recovery_window_days = var.secret_recovery_window_days
 }
