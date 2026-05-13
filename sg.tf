@@ -1,7 +1,7 @@
 # ── Fleet instance security group ─────────────────────────────────────────────
 resource "aws_security_group" "fleet" {
   name        = "${var.fleet_name}-fleet"
-  description = "FleetMind agent instances — egress-only (Slack Socket Mode + AWS API via NAT). No ingress by default; optional SSH gated on var.allowed_ssh_cidrs."
+  description = "FleetMind agent instances - egress-only (Slack Socket Mode + AWS API via NAT). No ingress by default; optional SSH gated on var.allowed_ssh_cidrs."
   vpc_id      = local.vpc_id
 
   # OpenClaw gateway ports: ingress intentionally removed.
