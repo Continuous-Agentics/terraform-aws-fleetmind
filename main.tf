@@ -12,7 +12,7 @@ terraform {
   }
 }
 
-# ── Networking (VPC + subnets + endpoints) ────────────────────────────
+# ── Networking (VPC + subnets + endpoints) ────────────────────────────────────
 module "networking" {
   source = "./modules/networking"
 
@@ -56,12 +56,42 @@ locals {
   wake_instance_name = length(local.pm_agent_names) > 0 ? "${var.fleet_name}-${local.pm_agent_names[0]}" : (length(var.agent_names) > 0 ? "${var.fleet_name}-${var.agent_names[0]}" : "${var.fleet_name}-agent")
 }
 
-# ── Task-ledger module ─────────────────────────────────────────────────────
+# ── One agent submodule per declared agent ────────────────────────────────────
+# Each call produces the full per-bot AWS footprint: EC2 instance, IAM role +
+# instance profile + policies, and per-agent Slack + Anthropic secrets.
+#
+# Cross-cutting policies (task-ledger PM/worker grants) are attached separately
+# by the task-ledger submodule below using module.agent[*].iam_role_name.
+module "agent" {
+  for_each = toset(var.agent_names)
+  source   = "./modules/agent"
+
+  name       = each.key
+  fleet_name = var.fleet_name
+  aws_region = var.aws_region
+
+  ami_id        = local.ami_id
+  instance_type = lookup(var.agent_instance_types, each.key, var.instance_type)
+  # Round-robin agents across the 2 private subnets for AZ spread.
+  subnet_id              = module.networking.private_subnet_ids[index(var.agent_names, each.key) % 2]
+  vpc_security_group_ids = [aws_security_group.fleet.id]
+  agent_port             = var.agent_ports[each.key]
+
+  openclaw_version  = var.openclaw_version
+  node_version      = var.node_version
+  fleetmind_version = var.fleetmind_version
+
+  context_store_table_arn     = aws_dynamodb_table.context_store.arn
+  shared_secret_arns          = var.enable_rds ? [aws_db_instance.main[0].master_user_secret[0].secret_arn] : []
+  secret_recovery_window_days = var.secret_recovery_window_days
+}
+
+# ── Task-ledger module ────────────────────────────────────────────────────────
 # Creates the DynamoDB task table, S3 narratives bucket, EventBridge Pipe,
 # and IAM policy attachments for PM and worker bots.
 #
-# Gated behind var.delegation_enabled (default false) so existing deployments
-# that applied the task-ledger module separately are unaffected.
+# Gated behind var.delegation_enabled (default false) so fleets that don't use
+# the delegation substrate skip it entirely.
 #
 # Required tfvars when enabling:
 #   delegation_enabled      = true
@@ -78,19 +108,19 @@ module "task_ledger" {
   # PM bots get the bot-ledger-pm policy (create/update tasks, write narratives)
   pm_role_names = [
     for name in var.agent_names :
-    aws_iam_role.agent[name].name
+    module.agent[name].iam_role_name
     if lookup(var.agent_orchestrators, name, false)
   ]
 
   # Worker bots get the bot-ledger-worker policy (update task status, write task .md)
   worker_role_names = [
     for name in var.agent_names :
-    aws_iam_role.agent[name].name
+    module.agent[name].iam_role_name
     if !lookup(var.agent_orchestrators, name, false)
   ]
 
   # EventBridge rule targets the primary PM bot's EC2 instance by Name tag.
-  # The Name tag is set in ec2.tf: "${var.fleet_name}-${each.key}".
+  # The Name tag is set inside modules/agent/main.tf: "${fleet_name}-${name}".
   wake_target_instance_tag_key   = "Name"
   wake_target_instance_tag_value = local.wake_instance_name
 
