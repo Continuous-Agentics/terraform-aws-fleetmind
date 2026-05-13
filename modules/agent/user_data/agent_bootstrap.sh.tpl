@@ -117,9 +117,10 @@ FLEETMIND_BIN=$(which fleetmind)
 echo "[bootstrap] fleetmind installed at: $FLEETMIND_BIN"
 fleetmind --version
 
-# Clean up .npmrc — token served its purpose; future installs re-auth from SSM
-rm -f /root/.npmrc
-echo "[bootstrap] /root/.npmrc removed (token cleaned up)"
+# Strip the auth token from .npmrc but keep the registry config so that
+# 'fleetmind self-upgrade' can re-auth from SSM and install future versions.
+sed -i '/^.*_authToken.*/d' /root/.npmrc
+echo "[bootstrap] /root/.npmrc auth token removed (registry config retained for self-upgrade)"
 
 # ── Workspace directory for this agent (on root volume) ─────────────────────────
 # Workspace lives on the EC2 root volume. Persistent state belongs in the
