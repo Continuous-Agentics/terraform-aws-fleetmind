@@ -41,7 +41,7 @@ output "secrets_arns" {
 # ── Shared fleet infrastructure outputs ──────────────────────────────────────
 
 output "vpc_id" {
-  description = "VPC ID (created or adopted by modules/networking)."
+  description = "VPC ID — either the VPC this module created via terraform-aws-modules/vpc/aws (when var.vpc_id is empty) or the BYO VPC adopted from var.vpc_id."
   value       = local.vpc_id
 }
 

@@ -17,6 +17,15 @@ resource "aws_dynamodb_table" "context_store" {
   hash_key     = "pk"
   range_key    = "sk"
 
+  # The ContextStore table holds the fleet's entire shared state. Accidental
+  # destroy is catastrophic, so protect at both the AWS layer (deletion
+  # protection) and add PITR for accidental data loss (writes, deletes).
+  deletion_protection_enabled = true
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
   attribute {
     name = "pk"
     type = "S"
