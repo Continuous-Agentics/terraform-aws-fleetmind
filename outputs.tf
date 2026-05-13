@@ -33,6 +33,16 @@ output "rds_endpoint" {
   value       = var.enable_rds ? aws_db_instance.main[0].endpoint : ""
 }
 
+output "db_name" {
+  description = "Postgres database name created on the RDS instance. Empty string when enable_rds = false."
+  value       = var.enable_rds ? aws_db_instance.main[0].db_name : ""
+}
+
+output "db_master_user_secret_arn" {
+  description = "ARN of the AWS-managed Secrets Manager secret that holds the RDS master user credentials (managed by RDS via manage_master_user_password). Agents read this at runtime to construct the DATABASE_URL. Empty string when enable_rds = false."
+  value       = var.enable_rds ? aws_db_instance.main[0].master_user_secret[0].secret_arn : ""
+}
+
 output "secrets_arns" {
   description = "Secrets Manager ARNs — slack and anthropic keys per agent."
   value = merge(

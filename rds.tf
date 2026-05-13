@@ -15,33 +15,14 @@ resource "aws_db_subnet_group" "main" {
   tags = { Name = "${var.fleet_name}-db-subnet-group" }
 }
 
-resource "random_password" "db" {
-  count   = var.enable_rds ? 1 : 0
-  length  = 32
-  special = false
-}
-
-# Stores the RDS master password + full DATABASE_URL as a single secret.
-# Agents fetch this at start time via the instance profile.
-resource "aws_secretsmanager_secret" "db" {
-  count = var.enable_rds ? 1 : 0
-
-  name                    = "${var.fleet_name}/shared/db"
-  description             = "RDS credentials for ${var.fleet_name}"
-  recovery_window_in_days = var.secret_recovery_window_days
-}
-
-resource "aws_secretsmanager_secret_version" "db" {
-  count = var.enable_rds ? 1 : 0
-
-  secret_id = aws_secretsmanager_secret.db[0].id
-
-  secret_string = templatefile("${path.module}/templates/db_secret.tftpl", {
-    password   = random_password.db[0].result
-    endpoint   = aws_db_instance.main[0].endpoint
-    fleet_name = var.fleet_name
-  })
-}
+# Master password is generated, stored, and rotated by RDS itself via
+# manage_master_user_password = true. The credentials live in a Secrets Manager
+# secret AWS owns (name: rds!db-<random>); no password ever touches Terraform
+# state. The secret ARN is exposed as the db_master_user_secret_arn output.
+#
+# Agents construct the DATABASE_URL at runtime by reading the AWS-managed
+# secret (returns {username, password}) and combining with the db_endpoint
+# output. See README.md "Database access".
 
 resource "aws_db_instance" "main" {
   count = var.enable_rds ? 1 : 0
@@ -54,9 +35,9 @@ resource "aws_db_instance" "main" {
   storage_type      = "gp3"
   storage_encrypted = true
 
-  db_name  = "fleetmind"
-  username = "fleetmind"
-  password = random_password.db[0].result
+  db_name                     = "fleetmind"
+  username                    = "fleetmind"
+  manage_master_user_password = true
 
   db_subnet_group_name   = aws_db_subnet_group.main[0].name
   vpc_security_group_ids = [aws_security_group.rds.id]

@@ -64,10 +64,16 @@ resource "aws_iam_role_policy" "agent_secrets" {
           "secretsmanager:DescribeSecret",
         ]
         # Each agent can only read its own secret + the shared secrets.
-        Resource = [
-          "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/agents/${each.key}/*",
-          "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/shared/*",
-        ]
+        # When enable_rds is true, the RDS-managed master-user secret is added
+        # explicitly (its ARN sits outside the fleet's namespace because AWS
+        # picks the name: rds!db-<random>).
+        Resource = concat(
+          [
+            "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/agents/${each.key}/*",
+            "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/shared/*",
+          ],
+          var.enable_rds ? [aws_db_instance.main[0].master_user_secret[0].secret_arn] : [],
+        )
       }
     ]
   })
