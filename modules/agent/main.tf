@@ -71,8 +71,8 @@ resource "aws_iam_role_policy" "secrets" {
           "secretsmanager:DescribeSecret",
         ]
         # Agent reads its own per-agent secrets + the fleet's shared/* namespace
-        # + any caller-supplied ARNs (typically the RDS-managed master-user
-        # secret, whose name AWS picks: rds!db-<random>).
+        # + any caller-supplied ARNs from var.shared_secret_arns (intended for
+        # AWS-managed secrets whose names the caller can't fully predict).
         Resource = concat(
           [
             "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/agents/${var.name}/*",

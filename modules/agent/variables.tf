@@ -75,7 +75,7 @@ variable "context_store_table_arn" {
 }
 
 variable "shared_secret_arns" {
-  description = "Additional Secrets Manager ARNs (outside the $${fleet_name}/agents/$${name}/* and $${fleet_name}/shared/* namespaces) that the agent role must be able to read. Typically used to grant access to the RDS-managed master-user secret (name: rds!db-<random>) which AWS owns and names."
+  description = "Additional Secrets Manager ARNs (outside the $${fleet_name}/agents/$${name}/* and $${fleet_name}/shared/* namespaces) that the agent role must be able to read. Intended for caller-supplied secrets whose ARNs the caller doesn't fully control (e.g. AWS-managed secrets where the service picks the name)."
   type        = list(string)
   default     = []
 }

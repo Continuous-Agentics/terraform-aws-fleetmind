@@ -52,12 +52,12 @@ output "context_store_backend" {
 
 output "context_store_table_name" {
   description = "DynamoDB table name for the fleet ContextStore. Empty string when context_store_backend != \"dynamodb\"."
-  value       = var.context_store_backend == "dynamodb" ? aws_dynamodb_table.context_store[0].name : ""
+  value       = coalesce(one(aws_dynamodb_table.context_store[*].name), "")
 }
 
 output "context_store_table_arn" {
   description = "DynamoDB table ARN for the fleet ContextStore. Empty string when context_store_backend != \"dynamodb\"."
-  value       = var.context_store_backend == "dynamodb" ? aws_dynamodb_table.context_store[0].arn : ""
+  value       = coalesce(one(aws_dynamodb_table.context_store[*].arn), "")
 }
 
 # ── Task-ledger outputs (populated when delegation_enabled = true) ───────────
