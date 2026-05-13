@@ -1,3 +1,6 @@
+# Module declares only required providers; consumer configures `provider "aws"`
+# and the Terraform backend in their root module. See README.md "Consumer setup"
+# for an example root configuration.
 terraform {
   required_version = ">= 1.5"
 
@@ -9,37 +12,6 @@ terraform {
     random = {
       source  = "hashicorp/random"
       version = "~> 3.0"
-    }
-  }
-
-  # ── Remote state (enable for team use) ────────────────────────────────────
-  # Uncomment and fill in bucket/table names after running:
-  #   aws s3 mb s3://<your-bucket>
-  #   aws dynamodb create-table --table-name <your-table> \
-  #     --attribute-definitions AttributeName=LockID,AttributeType=S \
-  #     --key-schema AttributeName=LockID,KeyType=HASH \
-  #     --billing-mode PAY_PER_REQUEST
-  #
-  # Remote state — partial config. Operator provides bucket, region,
-  # dynamodb_table via -backend-config flags or a local backend.hcl file.
-  # See backend.example.hcl in this directory + docs/MULTI-FLEET.md.
-  #
-  # The `key` argument is intentionally omitted: Terraform workspaces auto-prefix
-  # state files with `env:/<workspace>/`, so the workspace itself isolates state
-  # across fleets. Run `terraform workspace new <fleet-name>` per fleet.
-  backend "s3" {
-    encrypt = true
-  }
-}
-
-provider "aws" {
-  region = var.aws_region
-
-  default_tags {
-    tags = {
-      Project     = var.fleet_name
-      ManagedBy   = "terraform"
-      Environment = "production"
     }
   }
 }
