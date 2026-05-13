@@ -12,20 +12,9 @@ terraform {
   }
 }
 
-# ── Networking (VPC + subnets + endpoints) ────────────────────────────────────
-module "networking" {
-  source = "./modules/networking"
-
-  name_prefix = "${var.fleet_name}-"
-  aws_region  = var.aws_region
-  vpc_cidr    = var.vpc_cidr
-
-  vpc_id                      = var.vpc_id
-  existing_public_subnet_ids  = var.existing_public_subnet_ids
-  existing_private_subnet_ids = var.existing_private_subnet_ids
-
-  enable_interface_endpoints = var.enable_interface_endpoints
-}
+# Networking (VPC, subnets, endpoints) lives in vpc.tf using the upstream
+# terraform-aws-modules/vpc/aws module. The locals there (vpc_id,
+# private_subnet_ids, etc.) are read by the agent submodule + sg.tf + outputs.
 
 # ── Latest Amazon Linux 2023 AMI ──────────────────────────────────────────────
 data "aws_ami" "al2023" {
@@ -73,7 +62,7 @@ module "agent" {
   ami_id        = local.ami_id
   instance_type = lookup(var.agent_instance_types, each.key, var.instance_type)
   # Round-robin agents across the 2 private subnets for AZ spread.
-  subnet_id              = module.networking.private_subnet_ids[index(var.agent_names, each.key) % 2]
+  subnet_id              = local.private_subnet_ids[index(var.agent_names, each.key) % 2]
   vpc_security_group_ids = [aws_security_group.fleet.id]
   agent_port             = var.agent_ports[each.key]
 

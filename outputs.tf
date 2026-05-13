@@ -42,7 +42,7 @@ output "secrets_arns" {
 
 output "vpc_id" {
   description = "VPC ID (created or adopted by modules/networking)."
-  value       = module.networking.vpc_id
+  value       = local.vpc_id
 }
 
 output "context_store_backend" {

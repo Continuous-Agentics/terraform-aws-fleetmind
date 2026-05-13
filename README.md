@@ -15,13 +15,15 @@ Existing fleets (gg-sandbox, fleet-test-2) remain on the legacy direct-apply pat
 ```
 terraform-aws-fleetmind/
 ├── main.tf, variables.tf, outputs.tf   # root: composition + cross-cutting locals
+├── vpc.tf                              # VPC + endpoints via terraform-aws-modules/vpc/aws (BYO VPC supported)
 ├── dynamodb.tf                         # ContextStore table (gated on context_store_backend)
 ├── sg.tf                               # fleet security group
 └── modules/
-    ├── networking/                     # VPC + subnets + IGW + NAT + endpoints (BYO VPC supported)
     ├── agent/                          # one bot: EC2 + IAM role + per-agent secrets
     └── task-ledger/                    # delegation substrate (DDB + S3 + Pipes + EventBridge)
 ```
+
+Networking is built on upstream [`terraform-aws-modules/vpc/aws`](https://github.com/terraform-aws-modules/terraform-aws-vpc) (pinned `~> 5.0`). BYO VPC is supported via `var.vpc_id` + the `existing_*_subnet_ids` pair.
 
 ## Consumer setup
 
@@ -72,7 +74,7 @@ Use Terraform workspaces (`terraform workspace new <fleet-name>`) to isolate sta
 
 ## What this module manages
 
-- VPC + subnets + endpoints (via `modules/networking/`; BYO VPC via `var.vpc_id`)
+- VPC + subnets + endpoints (via upstream `terraform-aws-modules/vpc/aws` and `//modules/vpc-endpoints`; BYO VPC via `var.vpc_id`)
 - Fleet security group
 - Per-agent EC2 instances, IAM roles, and Secrets Manager placeholders (via `modules/agent/`, one call per agent)
 - DynamoDB ContextStore table (when `context_store_backend = "dynamodb"`)
