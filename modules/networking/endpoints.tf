@@ -8,16 +8,14 @@
 #
 # Interface endpoints (SSM/ssmmessages/ec2messages/SecretsManager) — opt-in.
 #   Required ONLY for fleets in fully-private subnets without NAT. When NAT
-#   is present (the default), these are best-practice hardening that eliminates
-#   the NAT-dependency for SSM connectivity. Gated by var.enable_interface_endpoints
-#   because each endpoint costs ~$20/mo (4 endpoints ≈ $80/mo).
+#   is present (the default), these are best-practice hardening that
+#   eliminates the NAT-dependency for SSM connectivity. Gated by
+#   var.enable_interface_endpoints because each endpoint costs ~$20/mo
+#   (4 endpoints ≈ $80/mo).
 #
-#   Enable in tfvars for fleets where SSM resilience independent of NAT health
-#   is desired, or where agents will eventually run without NAT.
-#
-# All endpoints are only created when create_vpc = true (i.e., fleetmind
-# manages the VPC). If you bring your own VPC (var.vpc_id != ""), wire
-# endpoints in your own infrastructure.
+# All endpoints are only created when this module manages the VPC
+# (local.create_vpc = true). When adopting an existing VPC, wire endpoints
+# in your own infrastructure.
 ###############################################################################
 
 # ── Security Group for interface endpoints ─────────────────────────────────────
@@ -28,7 +26,7 @@
 resource "aws_security_group" "vpc_endpoints" {
   count = local.create_vpc && var.enable_interface_endpoints ? 1 : 0
 
-  name        = "${var.fleet_name}-vpc-endpoints"
+  name        = "${var.name_prefix}vpc-endpoints"
   description = "Allow HTTPS from VPC to interface VPC endpoints (SSM, SecretsManager)"
   vpc_id      = local.vpc_id
 
@@ -48,7 +46,7 @@ resource "aws_security_group" "vpc_endpoints" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.fleet_name}-vpc-endpoints-sg" }
+  tags = { Name = "${var.name_prefix}vpc-endpoints-sg" }
 }
 
 # ── Gateway endpoints (always on, free) ───────────────────────────────────────
@@ -60,11 +58,9 @@ resource "aws_vpc_endpoint" "s3" {
   service_name      = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type = "Gateway"
 
-  # Associate with the private route table so agents in private subnets reach
-  # S3 through the backbone (task-ledger narratives bucket, etc.).
   route_table_ids = [aws_route_table.private[0].id]
 
-  tags = { Name = "${var.fleet_name}-s3-gateway" }
+  tags = { Name = "${var.name_prefix}s3-gateway" }
 }
 
 resource "aws_vpc_endpoint" "dynamodb" {
@@ -76,11 +72,10 @@ resource "aws_vpc_endpoint" "dynamodb" {
 
   route_table_ids = [aws_route_table.private[0].id]
 
-  tags = { Name = "${var.fleet_name}-dynamodb-gateway" }
+  tags = { Name = "${var.name_prefix}dynamodb-gateway" }
 }
 
 # ── Interface endpoints (opt-in, ~$20/mo each) ────────────────────────────────
-# Gated by var.enable_interface_endpoints (default false).
 # private_dns_enabled = true means the standard AWS SDK hostnames
 # (e.g. ssm.us-west-2.amazonaws.com) resolve to the endpoint ENI IPs
 # without any application-level change.
@@ -96,7 +91,7 @@ resource "aws_vpc_endpoint" "ssm" {
   subnet_ids         = local.private_subnets
   security_group_ids = [aws_security_group.vpc_endpoints[0].id]
 
-  tags = { Name = "${var.fleet_name}-ssm-endpoint" }
+  tags = { Name = "${var.name_prefix}ssm-endpoint" }
 }
 
 resource "aws_vpc_endpoint" "ssmmessages" {
@@ -110,7 +105,7 @@ resource "aws_vpc_endpoint" "ssmmessages" {
   subnet_ids         = local.private_subnets
   security_group_ids = [aws_security_group.vpc_endpoints[0].id]
 
-  tags = { Name = "${var.fleet_name}-ssmmessages-endpoint" }
+  tags = { Name = "${var.name_prefix}ssmmessages-endpoint" }
 }
 
 resource "aws_vpc_endpoint" "ec2messages" {
@@ -124,7 +119,7 @@ resource "aws_vpc_endpoint" "ec2messages" {
   subnet_ids         = local.private_subnets
   security_group_ids = [aws_security_group.vpc_endpoints[0].id]
 
-  tags = { Name = "${var.fleet_name}-ec2messages-endpoint" }
+  tags = { Name = "${var.name_prefix}ec2messages-endpoint" }
 }
 
 resource "aws_vpc_endpoint" "secretsmanager" {
@@ -138,5 +133,5 @@ resource "aws_vpc_endpoint" "secretsmanager" {
   subnet_ids         = local.private_subnets
   security_group_ids = [aws_security_group.vpc_endpoints[0].id]
 
-  tags = { Name = "${var.fleet_name}-secretsmanager-endpoint" }
+  tags = { Name = "${var.name_prefix}secretsmanager-endpoint" }
 }

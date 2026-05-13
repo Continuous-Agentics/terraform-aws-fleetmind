@@ -2,7 +2,7 @@
 resource "aws_security_group" "fleet" {
   name        = "${var.fleet_name}-fleet"
   description = "FleetMind agent instance"
-  vpc_id      = local.vpc_id
+  vpc_id      = module.networking.vpc_id
 
   # OpenClaw gateway ports: ingress intentionally removed.
   # Agents use Slack Socket Mode (outbound WebSocket to slack.com) and AWS API
@@ -40,7 +40,7 @@ resource "aws_security_group" "rds" {
 
   name        = "${var.fleet_name}-rds"
   description = "RDS Postgres - fleet instance access only"
-  vpc_id      = local.vpc_id
+  vpc_id      = module.networking.vpc_id
 
   ingress {
     description     = "Postgres from fleet instance"

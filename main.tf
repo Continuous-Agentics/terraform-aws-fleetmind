@@ -12,6 +12,21 @@ terraform {
   }
 }
 
+# ── Networking (VPC + subnets + endpoints) ────────────────────────────
+module "networking" {
+  source = "./modules/networking"
+
+  name_prefix = "${var.fleet_name}-"
+  aws_region  = var.aws_region
+  vpc_cidr    = var.vpc_cidr
+
+  vpc_id                      = var.vpc_id
+  existing_public_subnet_ids  = var.existing_public_subnet_ids
+  existing_private_subnet_ids = var.existing_private_subnet_ids
+
+  enable_interface_endpoints = var.enable_interface_endpoints
+}
+
 # ── Latest Amazon Linux 2023 AMI ──────────────────────────────────────────────
 data "aws_ami" "al2023" {
   most_recent = true

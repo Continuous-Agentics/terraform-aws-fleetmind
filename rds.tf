@@ -10,7 +10,7 @@ resource "aws_db_subnet_group" "main" {
   count = var.enable_rds ? 1 : 0
 
   name       = "${var.fleet_name}-db-subnet-group"
-  subnet_ids = local.private_subnets
+  subnet_ids = module.networking.private_subnet_ids
 
   tags = { Name = "${var.fleet_name}-db-subnet-group" }
 }

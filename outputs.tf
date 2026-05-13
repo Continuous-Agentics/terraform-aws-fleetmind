@@ -53,7 +53,7 @@ output "secrets_arns" {
 
 output "vpc_id" {
   description = "VPC ID (created or adopted)."
-  value       = local.vpc_id
+  value       = module.networking.vpc_id
 }
 
 # ── Task-ledger outputs (populated when delegation_enabled = true) ─────────────

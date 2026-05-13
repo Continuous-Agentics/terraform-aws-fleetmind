@@ -1,15 +1,25 @@
 ###############################################################################
-# VPC — create new or adopt existing
+# Networking — VPC create-or-adopt
 #
-# Set var.vpc_id to deploy into an existing VPC.
-# Leave it empty (default) to create a fresh VPC.
-#
-# When using an existing VPC:
-#   - Set vpc_id to your existing VPC ID
-#   - Set existing_public_subnet_ids (2 required — for EC2 + NAT GW)
-#   - Set existing_private_subnet_ids (2 required — for RDS)
-#   - No new VPC, subnets, IGW, NAT GW, or route tables are created
+# Two modes:
+#   - Create new VPC (default): leave var.vpc_id empty. Module creates
+#     a /16 VPC with 2 public + 2 private subnets across 2 AZs,
+#     an IGW, single NAT gateway, and route tables.
+#   - Adopt existing VPC: set var.vpc_id and provide
+#     existing_public_subnet_ids (2) + existing_private_subnet_ids (2).
+#     No new VPC, subnets, IGW, NAT, or route tables are created.
 ###############################################################################
+
+terraform {
+  required_version = ">= 1.5"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
 
 locals {
   create_vpc = var.vpc_id == ""
@@ -30,39 +40,39 @@ data "aws_availability_zones" "available" {
 resource "aws_vpc" "main" {
   count = local.create_vpc ? 1 : 0
 
-  cidr_block           = "10.0.0.0/16"
+  cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
 
-  tags = { Name = "${var.fleet_name}-vpc" }
+  tags = { Name = "${var.name_prefix}vpc" }
 }
 
 resource "aws_subnet" "public" {
   count = local.create_vpc ? 2 : 0
 
   vpc_id            = aws_vpc.main[0].id
-  cidr_block        = cidrsubnet("10.0.0.0/16", 8, count.index)
+  cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index)
   availability_zone = local.azs[count.index]
 
   map_public_ip_on_launch = true
-  tags                    = { Name = "${var.fleet_name}-public-${count.index}" }
+  tags                    = { Name = "${var.name_prefix}public-${count.index}" }
 }
 
 resource "aws_subnet" "private" {
   count = local.create_vpc ? 2 : 0
 
   vpc_id            = aws_vpc.main[0].id
-  cidr_block        = cidrsubnet("10.0.0.0/16", 8, count.index + 10)
+  cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index + 10)
   availability_zone = local.azs[count.index]
 
-  tags = { Name = "${var.fleet_name}-private-${count.index}" }
+  tags = { Name = "${var.name_prefix}private-${count.index}" }
 }
 
 resource "aws_internet_gateway" "main" {
   count = local.create_vpc ? 1 : 0
 
   vpc_id = aws_vpc.main[0].id
-  tags   = { Name = "${var.fleet_name}-igw" }
+  tags   = { Name = "${var.name_prefix}igw" }
 }
 
 resource "aws_route_table" "public" {
@@ -75,7 +85,7 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.main[0].id
   }
 
-  tags = { Name = "${var.fleet_name}-public-rt" }
+  tags = { Name = "${var.name_prefix}public-rt" }
 }
 
 resource "aws_route_table_association" "public" {
@@ -88,7 +98,7 @@ resource "aws_route_table_association" "public" {
 resource "aws_eip" "nat" {
   count  = local.create_vpc ? 1 : 0
   domain = "vpc"
-  tags   = { Name = "${var.fleet_name}-nat-eip" }
+  tags   = { Name = "${var.name_prefix}nat-eip" }
 }
 
 resource "aws_nat_gateway" "main" {
@@ -96,7 +106,7 @@ resource "aws_nat_gateway" "main" {
 
   allocation_id = aws_eip.nat[0].id
   subnet_id     = aws_subnet.public[0].id
-  tags          = { Name = "${var.fleet_name}-nat" }
+  tags          = { Name = "${var.name_prefix}nat" }
   depends_on    = [aws_internet_gateway.main]
 }
 
@@ -110,7 +120,7 @@ resource "aws_route_table" "private" {
     nat_gateway_id = aws_nat_gateway.main[0].id
   }
 
-  tags = { Name = "${var.fleet_name}-private-rt" }
+  tags = { Name = "${var.name_prefix}private-rt" }
 }
 
 resource "aws_route_table_association" "private" {
