@@ -33,29 +33,3 @@ resource "aws_security_group" "fleet" {
 
   tags = { Name = "${var.fleet_name}-fleet-sg" }
 }
-
-# ── RDS security group ────────────────────────────────────────────────────────
-resource "aws_security_group" "rds" {
-  count = var.enable_rds ? 1 : 0
-
-  name        = "${var.fleet_name}-rds"
-  description = "RDS Postgres - fleet instance access only"
-  vpc_id      = module.networking.vpc_id
-
-  ingress {
-    description     = "Postgres from fleet instance"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.fleet.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.fleet_name}-rds-sg" }
-}

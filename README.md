@@ -2,7 +2,7 @@
 
 Terraform module for [Fleetmind](https://github.com/Continuous-Agentics/fleetmind) — multi-bot fleet infrastructure on AWS.
 
-Provisions a fleet of OpenClaw agent EC2 instances with shared task-ledger primitives (DynamoDB single-table, S3 narratives bucket, EventBridge Pipe), per-agent IAM roles, RDS, VPC + endpoints, and security groups.
+Provisions a fleet of OpenClaw agent EC2 instances with a DynamoDB ContextStore, optional task-ledger primitives (DynamoDB single-table, S3 narratives bucket, EventBridge Pipe), per-agent IAM roles, VPC + endpoints, and security groups.
 
 ## Status
 
@@ -10,9 +10,22 @@ Provisions a fleet of OpenClaw agent EC2 instances with shared task-ledger primi
 
 Existing fleets (gg-sandbox, fleet-test-2) remain on the legacy direct-apply pattern at `Continuous-Agentics/fleetmind/infra/terraform/` until tear-down.
 
+## Module layout
+
+```
+terraform-aws-fleetmind/
+├── main.tf, variables.tf, outputs.tf   # root: composition + cross-cutting locals
+├── dynamodb.tf                         # ContextStore table (gated on context_store_backend)
+├── sg.tf                               # fleet security group
+└── modules/
+    ├── networking/                     # VPC + subnets + IGW + NAT + endpoints (BYO VPC supported)
+    ├── agent/                          # one bot: EC2 + IAM role + per-agent secrets
+    └── task-ledger/                    # delegation substrate (DDB + S3 + Pipes + EventBridge)
+```
+
 ## Consumer setup
 
-Consumers configure their own `provider "aws"`, Terraform backend, and `default_tags` in their root module. Example:
+Consumers configure their own `provider "aws"`, Terraform backend, and `default_tags` in their root module:
 
 ```hcl
 terraform {
@@ -51,38 +64,28 @@ module "fleetmind" {
 }
 ```
 
-*Important:* `default_tags` no longer applies automatically — the module's previous provider config set `Project`/`ManagedBy`/`Environment` tags on every resource. Consumers must configure `default_tags` themselves (as shown above) to keep equivalent tagging behavior.
-
 Use Terraform workspaces (`terraform workspace new <fleet-name>`) to isolate state per fleet — the backend `key` is intentionally not set so workspaces auto-prefix state files with `env:/<workspace>/`.
+
+## ContextStore backend
+
+`var.context_store_backend` (default `"dynamodb"`) selects the storage backend for the fleet's shared cross-agent key-value state. Today only `"dynamodb"` is supported — the agent runtime (`src/runtime/context.ts`) only speaks DynamoDB. The variable exists to set up a clean seam for future backends (e.g. `"rds"`) without an interface break.
 
 ## What this module manages
 
-- VPC + subnets + endpoints
-- Security groups
-- Per-agent EC2 instances (Amazon Linux 2023, SSM-managed)
-- Per-agent IAM roles + instance profiles
-- RDS Postgres (shared fleet datastore) with `manage_master_user_password = true` — AWS owns the master credential secret and rotates it
-- AWS Secrets Manager secrets for per-agent app credentials (Slack tokens, Anthropic keys)
-- *Optional* task-ledger submodule (`var.delegation_enabled = true`): DynamoDB single-table, S3 narratives bucket, EventBridge Pipe + rule for terminal-state agent wake-ups
-
-## Database access
-
-The module uses RDS-managed master user password (`manage_master_user_password = true`). The DB credentials live in a Secrets Manager secret AWS owns (name: `rds!db-<random>`). The plaintext password *never touches Terraform state*. AWS rotates the credential automatically.
-
-Agent runtime constructs the DATABASE_URL from two module outputs — `db_master_user_secret_arn` (read with `secretsmanager:GetSecretValue` returns `{username, password}`) and `rds_endpoint`:
-
-```python
-import boto3, json
-sm = boto3.client("secretsmanager")
-creds = json.loads(sm.get_secret_value(SecretId=secret_arn)["SecretString"])
-database_url = f"postgresql://{creds['username']}:{creds['password']}@{endpoint}/{db_name}"
-```
-
-Per-agent IAM roles are pre-granted read access to the RDS-managed secret when `enable_rds = true`.
+- VPC + subnets + endpoints (via `modules/networking/`; BYO VPC via `var.vpc_id`)
+- Fleet security group
+- Per-agent EC2 instances, IAM roles, and Secrets Manager placeholders (via `modules/agent/`, one call per agent)
+- DynamoDB ContextStore table (when `context_store_backend = "dynamodb"`)
+- *Optional* task-ledger submodule (`var.delegation_enabled = true`): DynamoDB tasks table, S3 narratives bucket, EventBridge Pipe + rule for terminal-state agent wake-ups
 
 ## Inputs and outputs
 
-See [`variables.tf`](variables.tf) (23 inputs) and [`outputs.tf`](outputs.tf) (11 outputs incl. `agent_iam_role_names`, `db_master_user_secret_arn`, `db_name`).
+See [`variables.tf`](variables.tf) and [`outputs.tf`](outputs.tf). Key outputs:
+
+- `instance_ids`, `private_ips`, `ssm_connect`, `agent_iam_role_names` — per-agent (one entry each)
+- `secrets_arns` — per-agent Slack + Anthropic ARNs
+- `context_store_table_name`, `context_store_table_arn` — DDB ContextStore
+- `task_ledger_table_name`, `task_ledger_s3_bucket` — when delegation enabled
 
 ## License
 

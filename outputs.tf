@@ -45,19 +45,19 @@ output "vpc_id" {
   value       = module.networking.vpc_id
 }
 
-output "rds_endpoint" {
-  description = "RDS Postgres endpoint (host:port). Empty string when enable_rds = false."
-  value       = var.enable_rds ? aws_db_instance.main[0].endpoint : ""
+output "context_store_backend" {
+  description = "Active ContextStore backend (echoes var.context_store_backend). Useful for consumers that branch agent-side configuration on backend type."
+  value       = var.context_store_backend
 }
 
-output "db_name" {
-  description = "Postgres database name created on the RDS instance. Empty string when enable_rds = false."
-  value       = var.enable_rds ? aws_db_instance.main[0].db_name : ""
+output "context_store_table_name" {
+  description = "DynamoDB table name for the fleet ContextStore. Empty string when context_store_backend != \"dynamodb\"."
+  value       = var.context_store_backend == "dynamodb" ? aws_dynamodb_table.context_store[0].name : ""
 }
 
-output "db_master_user_secret_arn" {
-  description = "ARN of the AWS-managed Secrets Manager secret holding the RDS master user credentials (managed by RDS via manage_master_user_password). Agents read this at runtime to construct the DATABASE_URL. Empty string when enable_rds = false."
-  value       = var.enable_rds ? aws_db_instance.main[0].master_user_secret[0].secret_arn : ""
+output "context_store_table_arn" {
+  description = "DynamoDB table ARN for the fleet ContextStore. Empty string when context_store_backend != \"dynamodb\"."
+  value       = var.context_store_backend == "dynamodb" ? aws_dynamodb_table.context_store[0].arn : ""
 }
 
 # ── Task-ledger outputs (populated when delegation_enabled = true) ───────────

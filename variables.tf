@@ -44,24 +44,6 @@ variable "node_version" {
   default     = "22"
 }
 
-variable "rds_instance_class" {
-  description = "RDS instance class for the shared Postgres database."
-  type        = string
-  default     = "db.t3.micro"
-}
-
-variable "rds_multi_az" {
-  description = "Enable Multi-AZ for RDS. Set true for production."
-  type        = bool
-  default     = false
-}
-
-variable "rds_allocated_storage" {
-  description = "Allocated storage in GB for RDS."
-  type        = number
-  default     = 20
-}
-
 variable "allowed_ssh_cidrs" {
   description = "CIDRs allowed to SSH to the fleet instance. Default empty — use SSM Session Manager instead."
   type        = list(string)
@@ -98,10 +80,15 @@ variable "existing_private_subnet_ids" {
   default     = []
 }
 
-variable "enable_rds" {
-  description = "Deploy RDS Postgres. Set false to use DynamoDB ContextStore only (simpler, lower cost)."
-  type        = bool
-  default     = false
+variable "context_store_backend" {
+  description = "Backend for the fleet ContextStore (cross-agent shared key-value state). Only \"dynamodb\" is supported today; the variable exists to set up the seam for future backends (e.g. \"rds\") without an interface break. When the runtime gains additional backends, valid values will be widened here."
+  type        = string
+  default     = "dynamodb"
+
+  validation {
+    condition     = contains(["dynamodb"], var.context_store_backend)
+    error_message = "context_store_backend must be \"dynamodb\" (the only backend the agent runtime currently supports)."
+  }
 }
 
 # ── Per-agent overrides (optional) ────────────────────────────────────────────

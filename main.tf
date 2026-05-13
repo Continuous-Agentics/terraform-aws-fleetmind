@@ -81,8 +81,7 @@ module "agent" {
   node_version      = var.node_version
   fleetmind_version = var.fleetmind_version
 
-  context_store_table_arn     = aws_dynamodb_table.context_store.arn
-  shared_secret_arns          = var.enable_rds ? [aws_db_instance.main[0].master_user_secret[0].secret_arn] : []
+  context_store_table_arn     = var.context_store_backend == "dynamodb" ? aws_dynamodb_table.context_store[0].arn : ""
   secret_recovery_window_days = var.secret_recovery_window_days
 }
 
