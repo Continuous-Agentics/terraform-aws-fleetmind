@@ -387,9 +387,14 @@ echo "[bootstrap]   On first push, 'fleetmind push fleet --restart' triggers the
 # aborts the bootstrap. The gh CLI is useful for gh-app-token but the bot
 # can start without it.
 echo "[bootstrap] STAGE 12b: gh CLI install starting at $(date)"
-dnf install -y 'dnf-command(config-manager)' 2>/dev/null || true
-dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo || true
-dnf install -y gh || echo "[bootstrap] gh CLI install failed (non-fatal) — continuing"
+if dnf install -y 'dnf-command(config-manager)' 2>/dev/null && \
+   dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo && \
+   dnf install -y gh; then
+  echo "[bootstrap] gh CLI installed successfully"
+else
+  echo "[bootstrap] WARNING: gh CLI install failed — bot will start without it" | tee /dev/console
+  echo "[bootstrap] To install manually: sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo && sudo dnf install -y gh"
+fi
 
 # ── STAGE 13: amazon-ssm-agent diagnostic ─────────────────────────────────────
 # AL2023 console output doesn't surface systemd unit state by default. Dump
