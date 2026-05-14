@@ -50,8 +50,8 @@ variable "wake_target_session_key" {
 
 variable "s3_bucket_name" {
   type        = string
-  description = "Globally unique S3 bucket name for narrative content. Defaults to '{name_prefix}ledger'."
-  default     = ""
+  description = "S3 bucket name for narrative content. Must be provided — the bucket is created at root level (s3.tf) so it exists regardless of delegation_enabled."
+  # No default — callers must pass the root-level bucket name explicitly.
 }
 
 variable "noncurrent_version_expiration_days" {

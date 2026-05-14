@@ -19,12 +19,12 @@ output "table_stream_arn" {
 
 output "s3_bucket_name" {
   description = "S3 bucket name for narrative content."
-  value       = aws_s3_bucket.ledger.id
+  value       = data.aws_s3_bucket.ledger.id
 }
 
 output "s3_bucket_arn" {
   description = "S3 bucket ARN for narrative content."
-  value       = aws_s3_bucket.ledger.arn
+  value       = data.aws_s3_bucket.ledger.arn
 }
 
 output "pm_policy_arn" {

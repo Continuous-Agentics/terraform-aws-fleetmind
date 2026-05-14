@@ -67,8 +67,13 @@ output "task_ledger_table_name" {
   value       = var.delegation_enabled ? module.task_ledger[0].table_name : ""
 }
 
+output "ledger_bucket_name" {
+  description = "S3 bucket name used for deploy staging and (when delegation_enabled) task narrative content."
+  value       = aws_s3_bucket.ledger.bucket
+}
+
 output "task_ledger_s3_bucket" {
-  description = "S3 bucket name for task narrative content. Empty string when delegation_enabled = false."
+  description = "S3 bucket name for task narrative content (same as ledger_bucket_name). Empty string when delegation_enabled = false."
   value       = var.delegation_enabled ? module.task_ledger[0].s3_bucket_name : ""
 }
 

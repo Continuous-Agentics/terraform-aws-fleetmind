@@ -119,6 +119,11 @@ module "task_ledger" {
   # Format: agent:main:slack:channel:<channel_id>
   wake_target_session_key = var.wake_target_session_key
 
+  # Bucket is created at root level (s3.tf) so it always exists regardless of
+  # delegation_enabled. Pass the name in so task-ledger uses it rather than
+  # creating its own.
+  s3_bucket_name = aws_s3_bucket.ledger.bucket
+
   tags = {
     Project   = var.fleet_name
     ManagedBy = "terraform"
