@@ -51,12 +51,6 @@ dnf install -y amazon-ssm-agent
 systemctl enable --now amazon-ssm-agent
 echo "[bootstrap] amazon-ssm-agent: $(systemctl is-active amazon-ssm-agent)"
 
-# ── GitHub CLI (matches Carpe bootstrap pattern) ──────────────────────────────
-echo "[bootstrap] STAGE 2b: gh CLI install starting at $(date)"
-dnf install -y 'dnf-command(config-manager)' 2>/dev/null || true
-dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
-dnf install -y gh
-
 # ── Node.js via NodeSource ────────────────────────────────────────────────────
 # Simpler than nvm; system-wide install; matches the pattern used by
 # Carpe's working bootstrap.
@@ -387,6 +381,15 @@ systemctl enable --now "openclaw-$AGENT_ID" || true
 echo "[bootstrap] STAGE 12: systemd unit installed and enabled"
 echo "[bootstrap]   ConditionPathExists gates start until 'fleetmind push fleet' ships the workspace."
 echo "[bootstrap]   On first push, 'fleetmind push fleet --restart' triggers the initial start."
+
+# ── STAGE 12b: gh CLI install (non-critical, after core bootstrap) ───────────
+# Moved after Node.js/openclaw/fleetmind so a network timeout here never
+# aborts the bootstrap. The gh CLI is useful for gh-app-token but the bot
+# can start without it.
+echo "[bootstrap] STAGE 12b: gh CLI install starting at $(date)"
+dnf install -y 'dnf-command(config-manager)' 2>/dev/null || true
+dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo || true
+dnf install -y gh || echo "[bootstrap] gh CLI install failed (non-fatal) — continuing"
 
 # ── STAGE 13: amazon-ssm-agent diagnostic ─────────────────────────────────────
 # AL2023 console output doesn't surface systemd unit state by default. Dump
