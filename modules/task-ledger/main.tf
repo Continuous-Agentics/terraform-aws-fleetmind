@@ -36,8 +36,7 @@ locals {
   account_id = data.aws_caller_identity.current.account_id
   region     = var.aws_region
 
-  table_name  = "${local.prefix}tasks"
-  bucket_name = var.s3_bucket_name != "" ? var.s3_bucket_name : "${local.prefix}ledger"
+  table_name = "${local.prefix}tasks"
 
   base_tags = merge(var.tags, {
     managed-by = "terraform"
@@ -132,84 +131,11 @@ resource "aws_dynamodb_table" "tasks" {
 # S3 bucket — narrative content
 # =============================================================================
 
-resource "aws_s3_bucket" "ledger" {
-  bucket = local.bucket_name
-  tags   = local.base_tags
-}
-
-resource "aws_s3_bucket_public_access_block" "ledger" {
-  bucket                  = aws_s3_bucket.ledger.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_ownership_controls" "ledger" {
-  bucket = aws_s3_bucket.ledger.id
-  rule {
-    object_ownership = "BucketOwnerEnforced"
-  }
-}
-
-resource "aws_s3_bucket_versioning" "ledger" {
-  bucket = aws_s3_bucket.ledger.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "ledger" {
-  bucket = aws_s3_bucket.ledger.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "ledger" {
-  bucket = aws_s3_bucket.ledger.id
-
-  rule {
-    id     = "expire-noncurrent-versions"
-    status = "Enabled"
-    filter {}
-
-    noncurrent_version_expiration {
-      noncurrent_days = var.noncurrent_version_expiration_days
-    }
-
-    abort_incomplete_multipart_upload {
-      days_after_initiation = 7
-    }
-  }
-}
-
-data "aws_iam_policy_document" "ledger_bucket_policy" {
-  statement {
-    sid    = "DenyInsecureTransport"
-    effect = "Deny"
-    principals {
-      type        = "*"
-      identifiers = ["*"]
-    }
-    actions = ["s3:*"]
-    resources = [
-      aws_s3_bucket.ledger.arn,
-      "${aws_s3_bucket.ledger.arn}/*",
-    ]
-    condition {
-      test     = "Bool"
-      variable = "aws:SecureTransport"
-      values   = ["false"]
-    }
-  }
-}
-
-resource "aws_s3_bucket_policy" "ledger" {
-  bucket = aws_s3_bucket.ledger.id
-  policy = data.aws_iam_policy_document.ledger_bucket_policy.json
+# Bucket is created at the root module level (s3.tf) and passed in via
+# var.s3_bucket_name. Use a data source to reference it here so IAM
+# policies can reference the bucket ARN without recreating the bucket.
+data "aws_s3_bucket" "ledger" {
+  bucket = var.s3_bucket_name
 }
 
 # =============================================================================
@@ -257,7 +183,7 @@ data "aws_iam_policy_document" "pm" {
     sid       = "WriteProjectReadme"
     effect    = "Allow"
     actions   = ["s3:PutObject", "s3:PutObjectTagging"]
-    resources = ["${aws_s3_bucket.ledger.arn}/v0/projects/*/README.md"]
+    resources = ["${data.aws_s3_bucket.ledger.arn}/v0/projects/*/README.md"]
   }
 
   statement {
@@ -269,14 +195,14 @@ data "aws_iam_policy_document" "pm" {
     sid       = "ReadAll"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"]
-    resources = ["${aws_s3_bucket.ledger.arn}/*"]
+    resources = ["${data.aws_s3_bucket.ledger.arn}/*"]
   }
 
   statement {
     sid       = "ListBucket"
     effect    = "Allow"
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
-    resources = [aws_s3_bucket.ledger.arn]
+    resources = [data.aws_s3_bucket.ledger.arn]
   }
 }
 
@@ -319,7 +245,7 @@ data "aws_iam_policy_document" "worker" {
     sid       = "WriteTasks"
     effect    = "Allow"
     actions   = ["s3:PutObject", "s3:PutObjectTagging"]
-    resources = ["${aws_s3_bucket.ledger.arn}/v0/projects/*/tasks/*.md"]
+    resources = ["${data.aws_s3_bucket.ledger.arn}/v0/projects/*/tasks/*.md"]
   }
 
   statement {
@@ -331,14 +257,14 @@ data "aws_iam_policy_document" "worker" {
     sid       = "ReadAll"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"]
-    resources = ["${aws_s3_bucket.ledger.arn}/*"]
+    resources = ["${data.aws_s3_bucket.ledger.arn}/*"]
   }
 
   statement {
     sid       = "ListBucket"
     effect    = "Allow"
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
-    resources = [aws_s3_bucket.ledger.arn]
+    resources = [data.aws_s3_bucket.ledger.arn]
   }
 }
 
@@ -379,14 +305,14 @@ data "aws_iam_policy_document" "reader" {
     sid       = "ReadAll"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"]
-    resources = ["${aws_s3_bucket.ledger.arn}/*"]
+    resources = ["${data.aws_s3_bucket.ledger.arn}/*"]
   }
 
   statement {
     sid       = "ListBucket"
     effect    = "Allow"
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
-    resources = [aws_s3_bucket.ledger.arn]
+    resources = [data.aws_s3_bucket.ledger.arn]
   }
 }
 
