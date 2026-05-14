@@ -89,6 +89,13 @@ See [`variables.tf`](variables.tf) and [`outputs.tf`](outputs.tf). Key outputs:
 - `context_store_table_name`, `context_store_table_arn` — DDB ContextStore
 - `task_ledger_table_name`, `task_ledger_s3_bucket` — when delegation enabled
 
+## Docs
+
+- [`docs/EXISTING-VPC.md`](docs/EXISTING-VPC.md) — deploying into an existing VPC (BYO VPC mode), requirements, current interface-endpoints limitation.
+- [`docs/TASK-LEDGER-STANDALONE.md`](docs/TASK-LEDGER-STANDALONE.md) — calling `modules/task-ledger/` directly from your own Terraform root, for callers who don't want the full fleetmind EC2/VPC stack.
+- [`docs/MODULE-TROUBLESHOOTING.md`](docs/MODULE-TROUBLESHOOTING.md) — IaC-side failures: state lock recovery, derived.tfvars propagation, per-agent taint/replace, DLQ inspection, `secret_recovery_window_days` gotchas.
+- [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md) — per-version upgrade notes (baseline: `v0.1.6`).
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
