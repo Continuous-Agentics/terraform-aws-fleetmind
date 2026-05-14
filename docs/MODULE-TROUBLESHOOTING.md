@@ -141,13 +141,24 @@ aws sqs purge-queue --queue-url <queue-url> --region <region>
 
 ---
 
-### `secret_recovery_window_days = 0` doesn't actually delete the secret
+### `Secret <name> already scheduled for deletion` when re-creating a fleet
 
-**Symptom:** You set `secret_recovery_window_days = 0` to allow re-creating a fleet with the same name, but `terraform apply` errors with `Secret <name> already scheduled for deletion`.
+**Symptom:** You destroyed a fleet (with `secret_recovery_window_days = 0` in tfvars), then immediately re-applied to create a fleet with the same name. The second apply errors with `Secret <name> already scheduled for deletion`.
 
-**Cause:** Setting `recovery_window_in_days = 0` on the Secrets Manager resource doesn't *immediately* delete; it sets the secret's scheduled-deletion behavior to no-grace-period. The previous (still-in-state) secret is then `force_destroy`-eligible, but if you destroyed and immediately re-applied, Secrets Manager itself is still processing the deletion.
+**Cause:** AWS Secrets Manager force-deletion (`recovery_window_in_days = 0`) propagates eventually-consistently. Your `terraform destroy` issued the force-delete; the secret is being torn down server-side; your follow-up apply tries to create a new secret with the same name and collides with the still-propagating deletion.
 
-**Fix:** Wait ~30 seconds and re-apply, or `aws secretsmanager delete-secret --secret-id <name> --force-delete-without-recovery` to force-purge before re-creating.
+Note: just *setting* `secret_recovery_window_days = 0` in tfvars and re-applying (without a destroy in between) doesn't trigger this — the value is just updated on the in-state resource. The collision requires a destroy + immediate re-create cycle.
+
+**Fix:** Either wait ~30 seconds between destroy and re-apply (the deletion usually propagates within that window), or force-purge the orphaned secret before re-applying:
+
+```bash
+aws secretsmanager delete-secret \
+  --secret-id <name> \
+  --force-delete-without-recovery \
+  --region <region>
+```
+
+Then retry `terraform apply`.
 
 ---
 

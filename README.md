@@ -82,12 +82,18 @@ Use Terraform workspaces (`terraform workspace new <fleet-name>`) to isolate sta
 
 ## Inputs and outputs
 
-See [`variables.tf`](variables.tf) and [`outputs.tf`](outputs.tf). Key outputs:
+Full surface in [`variables.tf`](variables.tf) and [`outputs.tf`](outputs.tf). Selected outputs:
 
-- `instance_ids`, `private_ips`, `ssm_connect`, `agent_iam_role_names` — per-agent (one entry each)
-- `secrets_arns` — per-agent Slack + Anthropic ARNs
-- `context_store_table_name`, `context_store_table_arn` — DDB ContextStore
-- `task_ledger_table_name`, `task_ledger_s3_bucket` — when delegation enabled
+- *Per-agent* (one entry each in the returned map, keyed by agent id):
+  `instance_ids`, `private_ips`, `ssm_connect`, `agent_workspace_paths`, `agent_service_names`, `agent_iam_role_names`, `secrets_arns`
+- *Networking:* `vpc_id`
+- *ContextStore:* `context_store_backend`, `context_store_table_name`, `context_store_table_arn`
+- *Deploy-staging bucket* (always created): `ledger_bucket_name`
+- *Task-ledger* (empty/null when `delegation_enabled = false`):
+  `task_ledger_table_name`, `task_ledger_s3_bucket`,
+  `task_ledger_pm_policy_arn`, `task_ledger_worker_policy_arn`
+
+> Note: `ledger_bucket_name` is the always-created deploy-staging bucket; `task_ledger_s3_bucket` is the same bucket *as exposed by the task-ledger submodule* and returns an empty string when delegation is disabled. Most consumers should use `ledger_bucket_name`.
 
 ## Docs
 

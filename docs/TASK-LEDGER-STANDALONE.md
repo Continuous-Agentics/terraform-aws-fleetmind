@@ -21,7 +21,7 @@ terraform {
   backend "s3" {
     bucket  = "my-terraform-state"
     key     = "my-fleet/task-ledger.tfstate"
-    region  = "us-east-1"
+    region  = "us-west-2"
     encrypt = true
   }
 
@@ -34,14 +34,14 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = "us-west-2"
 }
 
 module "task_ledger" {
   source = "github.com/Continuous-Agentics/terraform-aws-fleetmind//modules/task-ledger?ref=v0.1.6"
 
   name_prefix = "my-fleet-"
-  aws_region  = "us-east-1"
+  aws_region  = "us-west-2"
 
   # Existing IAM role names (created by your bot EC2 module).
   pm_role_names     = ["my-fleet-pm-bot-role"]
@@ -84,7 +84,7 @@ Note the `table_name` and `s3_bucket` outputs — they feed into the consuming f
 
 | Input | Required | Default | Notes |
 |---|---|---|---|
-| `name_prefix` | yes | — | Prefix for all created resources; must end in `-`. Resources: `<prefix>tasks` (DDB), `<prefix>ledger` (S3), `<prefix>pm-task-ledger-readwrite` / `<prefix>worker-task-ledger-readwrite` (IAM policies), `<prefix>ledger-pipe-dlq` / `<prefix>ledger-wake-dlq` (DLQs). |
+| `name_prefix` | yes | `"fleetmind-"` | Prefix for all created resources. The variable itself doesn't enforce a trailing `-`, but ending with one produces readable resource names (`fleetmind-tasks` vs `fleetmindtasks`). Resources: `<prefix>tasks` (DDB), `<prefix>ledger` (S3), `<prefix>pm-task-ledger-readwrite` / `<prefix>worker-task-ledger-readwrite` (IAM policies), `<prefix>ledger-pipe-dlq` / `<prefix>ledger-wake-dlq` (DLQs). |
 | `aws_region` | yes | — | Used for SSM target resolution. |
 | `pm_role_names` | yes | — | IAM role names that should be granted PM-side ledger access (read+write all tasks, dispatch wake commands). |
 | `worker_role_names` | yes | — | IAM role names that should be granted worker-side ledger access (read+write own tasks only). |
@@ -106,7 +106,7 @@ See [`modules/task-ledger/variables.tf`](../modules/task-ledger/variables.tf) fo
 | `s3_bucket_name` | S3 narratives bucket. Feed into your agent runtime's `delegation.s3_bucket`. |
 | `pm_policy_arn` | Attach to PM bot's IAM role if you didn't pass it via `pm_role_names`. |
 | `worker_policy_arn` | Same for workers. |
-| `pipe_arn`, `rule_arn` | Diagnostic — referenced by the DLQ alarms and visible in EventBridge console. |
+| `pipe_arn`, `eventbridge_rule_arn` | Diagnostic — referenced by the DLQ alarms and visible in EventBridge console. |
 
 ---
 
