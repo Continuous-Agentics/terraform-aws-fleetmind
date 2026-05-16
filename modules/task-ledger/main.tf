@@ -183,7 +183,7 @@ data "aws_iam_policy_document" "pm" {
     sid       = "WriteProjectReadme"
     effect    = "Allow"
     actions   = ["s3:PutObject", "s3:PutObjectTagging"]
-    resources = ["${data.aws_s3_bucket.ledger.arn}/v0/projects/*/README.md"]
+    resources = ["${var.s3_bucket_arn}/v0/projects/*/README.md"]
   }
 
   statement {
@@ -195,14 +195,14 @@ data "aws_iam_policy_document" "pm" {
     sid       = "ReadAll"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"]
-    resources = ["${data.aws_s3_bucket.ledger.arn}/*"]
+    resources = ["${var.s3_bucket_arn}/*"]
   }
 
   statement {
     sid       = "ListBucket"
     effect    = "Allow"
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
-    resources = [data.aws_s3_bucket.ledger.arn]
+    resources = [var.s3_bucket_arn]
   }
 }
 
@@ -245,7 +245,7 @@ data "aws_iam_policy_document" "worker" {
     sid       = "WriteTasks"
     effect    = "Allow"
     actions   = ["s3:PutObject", "s3:PutObjectTagging"]
-    resources = ["${data.aws_s3_bucket.ledger.arn}/v0/projects/*/tasks/*.md"]
+    resources = ["${var.s3_bucket_arn}/v0/projects/*/tasks/*.md"]
   }
 
   statement {
@@ -257,14 +257,14 @@ data "aws_iam_policy_document" "worker" {
     sid       = "ReadAll"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"]
-    resources = ["${data.aws_s3_bucket.ledger.arn}/*"]
+    resources = ["${var.s3_bucket_arn}/*"]
   }
 
   statement {
     sid       = "ListBucket"
     effect    = "Allow"
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
-    resources = [data.aws_s3_bucket.ledger.arn]
+    resources = [var.s3_bucket_arn]
   }
 }
 
@@ -305,14 +305,14 @@ data "aws_iam_policy_document" "reader" {
     sid       = "ReadAll"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"]
-    resources = ["${data.aws_s3_bucket.ledger.arn}/*"]
+    resources = ["${var.s3_bucket_arn}/*"]
   }
 
   statement {
     sid       = "ListBucket"
     effect    = "Allow"
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
-    resources = [data.aws_s3_bucket.ledger.arn]
+    resources = [var.s3_bucket_arn]
   }
 }
 

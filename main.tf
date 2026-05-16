@@ -61,8 +61,10 @@ module "agent" {
 
   ami_id        = local.ami_id
   instance_type = lookup(var.agent_instance_types, each.key, var.instance_type)
-  # Round-robin agents across the 2 private subnets for AZ spread.
-  subnet_id              = local.private_subnet_ids[index(var.agent_names, each.key) % 2]
+  # Round-robin agents across whatever private subnets the fleet has (1 to N)
+  # for AZ spread. We modulo by the actual subnet count rather than a hardcoded
+  # 2 so BYO-VPC operators can bring any subnet count without index-out-of-range.
+  subnet_id              = local.private_subnet_ids[index(var.agent_names, each.key) % length(local.private_subnet_ids)]
   vpc_security_group_ids = [aws_security_group.fleet.id]
 
   openclaw_version  = var.openclaw_version
@@ -119,9 +121,11 @@ module "task_ledger" {
   wake_target_session_key = var.wake_target_session_key
 
   # Bucket is created at root level (s3.tf) so it always exists regardless of
-  # delegation_enabled. Pass the name in so task-ledger uses it rather than
-  # creating its own.
+  # delegation_enabled. Pass both name and ARN in so task-ledger doesn't have
+  # to data-lookup a bucket that's created in the same apply (the data lookup
+  # races plan/refresh against the create on first bring-up).
   s3_bucket_name = aws_s3_bucket.ledger.bucket
+  s3_bucket_arn  = aws_s3_bucket.ledger.arn
 
   tags = {
     Project   = var.fleet_name
