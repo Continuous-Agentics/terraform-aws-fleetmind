@@ -130,13 +130,13 @@ resource "aws_dynamodb_table" "tasks" {
 # =============================================================================
 # S3 bucket — narrative content
 # =============================================================================
-
-# Bucket is created at the root module level (s3.tf) and passed in via
-# var.s3_bucket_name. Use a data source to reference it here so IAM
-# policies can reference the bucket ARN without recreating the bucket.
-data "aws_s3_bucket" "ledger" {
-  bucket = var.s3_bucket_name
-}
+#
+# The ledger bucket is created at the root module level (s3.tf) and passed in
+# via var.s3_bucket_name + var.s3_bucket_arn. Previously this module did a
+# 'data "aws_s3_bucket" "ledger"' lookup, but that resolves at plan/refresh
+# time — racing the resource create in the same apply on first bring-up.
+# Taking the ARN as a variable lets Terraform infer the dependency through
+# the root-module attribute reference and avoids the chicken-and-egg.
 
 # =============================================================================
 # IAM policies
