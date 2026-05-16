@@ -10,10 +10,21 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "instance_type" {
-  description = "EC2 instance type. t3.medium comfortably runs 3 OpenClaw agents. Scale up if adding more."
+variable "architecture" {
+  description = "CPU architecture for both the AMI and the instance type. Must be 'arm64' (Graviton, default) or 'x86_64' (Intel/AMD). var.instance_type and var.agent_instance_types entries must match this architecture (e.g. t4g.* for arm64, t3.* for x86_64)."
   type        = string
-  default     = "t3.medium"
+  default     = "arm64"
+
+  validation {
+    condition     = contains(["arm64", "x86_64"], var.architecture)
+    error_message = "architecture must be 'arm64' or 'x86_64'."
+  }
+}
+
+variable "instance_type" {
+  description = "EC2 instance type. Must match var.architecture (t4g.* for arm64, t3.*/t4.*/m*.* for x86_64). t4g.large comfortably runs a single OpenClaw agent; bump up if the agent does heavy work."
+  type        = string
+  default     = "t4g.large"
 }
 
 variable "agent_names" {

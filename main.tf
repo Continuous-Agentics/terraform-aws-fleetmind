@@ -24,9 +24,14 @@ data "aws_ami" "al2023" {
   filter {
     name = "name"
     # Excludes the "minimal" AMI variant (al2023-ami-minimal-*) which does NOT
-    # include amazon-ssm-agent. The standard AMI name begins with the year:
-    # al2023-ami-2023.X.YYYYMMDD.N-kernel-*-x86_64
-    values = ["al2023-ami-2023*-x86_64"]
+    # include amazon-ssm-agent. The standard AMI name embeds the architecture:
+    # al2023-ami-2023.X.YYYYMMDD.N-kernel-*-{arm64|x86_64}
+    values = ["al2023-ami-2023*-${var.architecture}"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = [var.architecture]
   }
 
   filter {
