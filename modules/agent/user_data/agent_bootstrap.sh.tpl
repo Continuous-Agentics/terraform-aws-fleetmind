@@ -11,7 +11,6 @@ set -euo pipefail
 # Variables (injected by Terraform templatefile):
 #   fleet_name       – fleet namespace (used for SecretsManager paths)
 #   agent_id         – unique agent identifier (matches fleet.yaml id)
-#   agent_port       – OpenClaw gateway listening port
 #   openclaw_version – npm version to install ("latest" or pinned)
 #   node_version     – Node.js major version (e.g. "22")
 #   aws_region       – AWS region for SecretsManager calls
@@ -19,7 +18,6 @@ set -euo pipefail
 
 FLEET_NAME="${fleet_name}"
 AGENT_ID="${agent_id}"
-AGENT_PORT="${agent_port}"
 AWS_REGION="${aws_region}"
 NODE_VERSION="${node_version}"
 OPENCLAW_VERSION="${openclaw_version}"
@@ -34,7 +32,7 @@ ENV_FILE="/run/openclaw-$AGENT_ID.env"
 # even when SSM agent never registers (e.g. private-subnet with no SSM VPC endpoint).
 exec > >(tee /var/log/fleetmind-bootstrap.log /dev/console | logger -t "fleetmind-bootstrap-$AGENT_ID") 2>&1
 echo "[bootstrap] Starting FleetMind agent bootstrap"
-echo "[bootstrap] Fleet: $FLEET_NAME | Agent: $AGENT_ID | Port: $AGENT_PORT"
+echo "[bootstrap] Fleet: $FLEET_NAME | Agent: $AGENT_ID"
 
 # ── System updates ────────────────────────────────────────────────────────────
 echo "[bootstrap] STAGE 1: dnf update starting at $(date)"
@@ -333,7 +331,7 @@ echo "[bootstrap] gh-app-token installed at /usr/local/bin/gh-app-token"
 
 # ── systemd service for this agent ────────────────────────────────────────────
 echo "[bootstrap] STAGE 9: systemd unit write starting at $(date)"
-echo "[bootstrap] Creating systemd service for agent: $AGENT_ID (port $AGENT_PORT)"
+echo "[bootstrap] Creating systemd service for agent: $AGENT_ID"
 
 cat > "/etc/systemd/system/openclaw-$AGENT_ID.service" << EOF
 [Unit]

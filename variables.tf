@@ -32,16 +32,6 @@ variable "agent_names" {
   }
 }
 
-variable "agent_ports" {
-  description = "Map of agent name to OpenClaw port."
-  type        = map(number)
-  default = {
-    orchestrator = 18789
-    pixel        = 18790
-    forge        = 18791
-  }
-}
-
 variable "openclaw_version" {
   description = "OpenClaw npm package version to install. Use 'latest' or pin to a specific version."
   type        = string

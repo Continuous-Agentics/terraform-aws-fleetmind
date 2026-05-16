@@ -247,7 +247,6 @@ resource "aws_instance" "agent" {
   user_data_base64 = base64gzip(templatefile("${path.module}/user_data/agent_bootstrap.sh.tpl", {
     fleet_name        = var.fleet_name
     agent_id          = var.name
-    agent_port        = var.agent_port
     openclaw_version  = var.openclaw_version
     node_version      = var.node_version
     aws_region        = var.aws_region

@@ -64,7 +64,6 @@ module "agent" {
   # Round-robin agents across the 2 private subnets for AZ spread.
   subnet_id              = local.private_subnet_ids[index(var.agent_names, each.key) % 2]
   vpc_security_group_ids = [aws_security_group.fleet.id]
-  agent_port             = var.agent_ports[each.key]
 
   openclaw_version  = var.openclaw_version
   node_version      = var.node_version

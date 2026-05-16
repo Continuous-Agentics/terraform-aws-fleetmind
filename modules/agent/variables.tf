@@ -38,11 +38,6 @@ variable "vpc_security_group_ids" {
   type        = list(string)
 }
 
-variable "agent_port" {
-  description = "TCP port the agent's OpenClaw gateway listens on."
-  type        = number
-}
-
 variable "root_volume_size" {
   description = "Root EBS volume size in GB."
   type        = number
