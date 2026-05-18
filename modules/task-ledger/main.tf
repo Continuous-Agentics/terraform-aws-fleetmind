@@ -130,13 +130,13 @@ resource "aws_dynamodb_table" "tasks" {
 # =============================================================================
 # S3 bucket — narrative content
 # =============================================================================
-
-# Bucket is created at the root module level (s3.tf) and passed in via
-# var.s3_bucket_name. Use a data source to reference it here so IAM
-# policies can reference the bucket ARN without recreating the bucket.
-data "aws_s3_bucket" "ledger" {
-  bucket = var.s3_bucket_name
-}
+#
+# The ledger bucket is created at the root module level (s3.tf) and passed in
+# via var.s3_bucket_name + var.s3_bucket_arn. Previously this module did a
+# 'data "aws_s3_bucket" "ledger"' lookup, but that resolves at plan/refresh
+# time — racing the resource create in the same apply on first bring-up.
+# Taking the ARN as a variable lets Terraform infer the dependency through
+# the root-module attribute reference and avoids the chicken-and-egg.
 
 # =============================================================================
 # IAM policies
@@ -183,7 +183,7 @@ data "aws_iam_policy_document" "pm" {
     sid       = "WriteProjectReadme"
     effect    = "Allow"
     actions   = ["s3:PutObject", "s3:PutObjectTagging"]
-    resources = ["${data.aws_s3_bucket.ledger.arn}/v0/projects/*/README.md"]
+    resources = ["${var.s3_bucket_arn}/v0/projects/*/README.md"]
   }
 
   statement {
@@ -195,14 +195,14 @@ data "aws_iam_policy_document" "pm" {
     sid       = "ReadAll"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"]
-    resources = ["${data.aws_s3_bucket.ledger.arn}/*"]
+    resources = ["${var.s3_bucket_arn}/*"]
   }
 
   statement {
     sid       = "ListBucket"
     effect    = "Allow"
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
-    resources = [data.aws_s3_bucket.ledger.arn]
+    resources = [var.s3_bucket_arn]
   }
 }
 
@@ -245,7 +245,7 @@ data "aws_iam_policy_document" "worker" {
     sid       = "WriteTasks"
     effect    = "Allow"
     actions   = ["s3:PutObject", "s3:PutObjectTagging"]
-    resources = ["${data.aws_s3_bucket.ledger.arn}/v0/projects/*/tasks/*.md"]
+    resources = ["${var.s3_bucket_arn}/v0/projects/*/tasks/*.md"]
   }
 
   statement {
@@ -257,14 +257,14 @@ data "aws_iam_policy_document" "worker" {
     sid       = "ReadAll"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"]
-    resources = ["${data.aws_s3_bucket.ledger.arn}/*"]
+    resources = ["${var.s3_bucket_arn}/*"]
   }
 
   statement {
     sid       = "ListBucket"
     effect    = "Allow"
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
-    resources = [data.aws_s3_bucket.ledger.arn]
+    resources = [var.s3_bucket_arn]
   }
 }
 
@@ -305,14 +305,14 @@ data "aws_iam_policy_document" "reader" {
     sid       = "ReadAll"
     effect    = "Allow"
     actions   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"]
-    resources = ["${data.aws_s3_bucket.ledger.arn}/*"]
+    resources = ["${var.s3_bucket_arn}/*"]
   }
 
   statement {
     sid       = "ListBucket"
     effect    = "Allow"
     actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
-    resources = [data.aws_s3_bucket.ledger.arn]
+    resources = [var.s3_bucket_arn]
   }
 }
 
