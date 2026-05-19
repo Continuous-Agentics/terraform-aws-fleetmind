@@ -176,11 +176,16 @@ chmod +x /usr/local/bin/fetch-agent-secrets
 # ── GitHub App token script ──────────────────────────────────────────────────
 echo "[bootstrap] STAGE 8b: gh-app-token install starting at $(date)"
 
-# Write agent identity file so gh-app-token can discover FLEET_NAME / AGENT_ID
+# Write agent identity file so gh-app-token + fleetmind pull-self can discover
+# FLEET_NAME / AGENT_ID / WORKSPACE_BASE. WORKSPACE_BASE is read by pull-self
+# to locate the agent workspace; without it pull-self falls back to
+# /opt/openclaw/workspace (which matches, but the explicit value is safer and
+# allows future per-agent overrides without a bootstrap change).
 mkdir -p /etc/fleetmind
 cat > /etc/fleetmind/agent.env << AGENTENV_EOF
 FLEET_NAME=$FLEET_NAME
 AGENT_ID=$AGENT_ID
+WORKSPACE_BASE=$WORKSPACE_BASE
 AGENTENV_EOF
 chmod 644 /etc/fleetmind/agent.env
 

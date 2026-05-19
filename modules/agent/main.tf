@@ -243,7 +243,9 @@ resource "aws_instance" "agent" {
 
   # user_data_base64 + base64gzip keeps the rendered script under EC2's 16 KB
   # user_data limit while remaining fully transparent to the instance at boot.
-  user_data_replace_on_change = true
+  # user_data changes are ignored in lifecycle (see below) so bootstrap updates
+  # do not trigger instance replacement. Reprovisioning is done by tainting the
+  # resource explicitly when a bootstrap change must be applied to existing hosts.
   user_data_base64 = base64gzip(templatefile("${path.module}/user_data/agent_bootstrap.sh.tpl", {
     fleet_name        = var.fleet_name
     agent_id          = var.name
@@ -260,6 +262,6 @@ resource "aws_instance" "agent" {
   }
 
   lifecycle {
-    ignore_changes = [ami]
+    ignore_changes = [ami, user_data_base64]
   }
 }
