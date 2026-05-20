@@ -152,3 +152,23 @@ variable "secret_recovery_window_days" {
     error_message = "secret_recovery_window_days must be 0 or in the inclusive range 7\u201330 (AWS Secrets Manager constraint)."
   }
 }
+
+# ── NATS transport variables ──────────────────────────────────────────────────
+
+variable "nats_enabled" {
+  description = "When true, provisions a single-node NATS server EC2 instance and a Cloud Map private DNS namespace (<fleet_name>.internal). Agents discover the NATS server at nats://<fleet_name>.internal:4222. Default false — opt-in for the feat/nats-transport POC."
+  type        = bool
+  default     = false
+}
+
+variable "nats_instance_type" {
+  description = "EC2 instance type for the NATS server. Must match var.architecture (t4g.small for arm64, t3.small for x86_64). t4g.small comfortably handles thousands of bot messages per second."
+  type        = string
+  default     = "t4g.small"
+}
+
+variable "nats_version" {
+  description = "NATS server version to install from GitHub releases (semver without 'v' prefix). Pin this for reproducible deploys."
+  type        = string
+  default     = "2.10.18"
+}
