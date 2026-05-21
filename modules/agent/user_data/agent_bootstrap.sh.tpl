@@ -82,6 +82,10 @@ npm install -g "$OPENCLAW_PKG"
 OPENCLAW_BIN=$(which openclaw)
 echo "[bootstrap] openclaw installed at: $OPENCLAW_BIN"
 
+echo "[bootstrap] STAGE 6a: @openclaw/slack plugin install starting at $(date)"
+npm install -g @openclaw/slack
+echo "[bootstrap] @openclaw/slack installed"
+
 # ── fleetmind CLI ─────────────────────────────────────────────────────────────
 # Install @continuous-agentics/fleetmind from GitHub Packages (private, scoped).
 # Auth: a read-only PAT with read:packages scope is stored in SSM as a shared
