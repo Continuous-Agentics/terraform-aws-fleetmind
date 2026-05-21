@@ -82,12 +82,6 @@ npm install -g "$OPENCLAW_PKG"
 OPENCLAW_BIN=$(which openclaw)
 echo "[bootstrap] openclaw installed at: $OPENCLAW_BIN"
 
-echo "[bootstrap] STAGE 6a: @openclaw/slack plugin install starting at $(date)"
-# Install via openclaw plugin system (not npm -g) so OpenClaw discovers it correctly.
-# Runs as ec2-user since openclaw runs as ec2-user and plugins are stored per-user.
-sudo -u ec2-user HOME="$WORKSPACE_DIR" openclaw plugins install @openclaw/slack --force
-echo "[bootstrap] @openclaw/slack installed"
-
 # ── fleetmind CLI ─────────────────────────────────────────────────────────────
 # Install @continuous-agentics/fleetmind from GitHub Packages (private, scoped).
 # Auth: a read-only PAT with read:packages scope is stored in SSM as a shared
@@ -128,6 +122,12 @@ echo "[bootstrap] STAGE 7: workspace mkdir starting at $(date)"
 mkdir -p "$WORKSPACE_DIR"
 chown -R ec2-user:ec2-user "$WORKSPACE_DIR"
 echo "[bootstrap] Workspace dir: $WORKSPACE_DIR (root volume)"
+
+echo "[bootstrap] STAGE 7a: @openclaw/slack plugin install starting at $(date)"
+# Must run after workspace dir exists and is owned by ec2-user.
+# Uses HOME=$WORKSPACE_DIR so plugin lands where the service can find it.
+sudo -u ec2-user HOME="$WORKSPACE_DIR" openclaw plugins install @openclaw/slack --force
+echo "[bootstrap] @openclaw/slack installed"
 
 # ── Secret fetch helper ───────────────────────────────────────────────────────
 echo "[bootstrap] STAGE 8: fetch-secrets helper write starting at $(date)"
