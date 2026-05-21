@@ -3,11 +3,6 @@ variable "fleet_name" {
   type        = string
 }
 
-variable "aws_region" {
-  description = "AWS region."
-  type        = string
-}
-
 variable "vpc_id" {
   description = "VPC to deploy the NATS instance into."
   type        = string

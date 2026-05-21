@@ -26,7 +26,6 @@ module "nats" {
   source = "./modules/nats"
 
   fleet_name    = var.fleet_name
-  aws_region    = var.aws_region
   vpc_id        = local.vpc_id
   subnet_id     = local.private_subnet_ids[0]
   fleet_sg_id   = aws_security_group.fleet.id
@@ -38,6 +37,4 @@ module "nats" {
   cloud_map_namespace_name = aws_service_discovery_private_dns_namespace.fleet[0].name
 
   tags = { fleet = var.fleet_name }
-
-  depends_on = [aws_service_discovery_private_dns_namespace.fleet]
 }
