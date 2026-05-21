@@ -63,7 +63,8 @@ echo "[bootstrap] Node $(node --version) installed at $NODE_BIN"
 # ── AWS CLI v2 ────────────────────────────────────────────────────────────────
 echo "[bootstrap] STAGE 5: aws cli install/check starting at $(date)"
 if ! aws --version 2>&1 | grep -q "aws-cli/2"; then
-  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+  AWSCLI_ARCH=$(uname -m | sed 's/aarch64/aarch64/;s/x86_64/x86_64/')
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$${AWSCLI_ARCH}.zip" -o /tmp/awscliv2.zip
   unzip -q /tmp/awscliv2.zip -d /tmp
   /tmp/aws/install --update
   rm -rf /tmp/aws /tmp/awscliv2.zip
