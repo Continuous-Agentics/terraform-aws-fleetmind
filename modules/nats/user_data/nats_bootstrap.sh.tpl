@@ -21,18 +21,17 @@ echo "[nats-bootstrap] Installing NATS server v$${NATS_VERSION} ($${NATS_ARCH}).
 cd /tmp
 NATS_ZIP="nats-server-v$${NATS_VERSION}-$${NATS_ARCH}.zip"
 NATS_BASE_URL="https://github.com/nats-io/nats-server/releases/download/v$${NATS_VERSION}"
+NATS_CHECKSUMS="SHA256SUMS"
 
 curl -fsSL "$${NATS_BASE_URL}/$${NATS_ZIP}" -o "$${NATS_ZIP}"
-curl -fsSL "$${NATS_BASE_URL}/checksums.txt" -o checksums.txt
+curl -fsSL "$${NATS_BASE_URL}/$${NATS_CHECKSUMS}" -o "$${NATS_CHECKSUMS}"
 
 # Verify SHA256 before installing.
-# Two-step: first confirm the filename is present in the checksums file,
-# then verify the hash. Distinct error messages make debugging easier.
-if ! grep -qF "$${NATS_ZIP}" checksums.txt; then
-  echo "[nats-bootstrap] ERROR: $${NATS_ZIP} not found in checksums.txt — unexpected release format?" >&2
+if ! grep -qF "$${NATS_ZIP}" "$${NATS_CHECKSUMS}"; then
+  echo "[nats-bootstrap] ERROR: $${NATS_ZIP} not found in $${NATS_CHECKSUMS} — unexpected release format?" >&2
   exit 1
 fi
-if ! grep -F "$${NATS_ZIP}" checksums.txt | sha256sum -c --status; then
+if ! grep -F "$${NATS_ZIP}" "$${NATS_CHECKSUMS}" | sha256sum -c --status; then
   echo "[nats-bootstrap] ERROR: SHA256 mismatch for $${NATS_ZIP} — download may be corrupt or tampered" >&2
   exit 1
 fi
@@ -40,7 +39,7 @@ echo "[nats-bootstrap] SHA256 verified."
 
 unzip -o "$${NATS_ZIP}" -d /tmp/nats-extract
 install -m 755 /tmp/nats-extract/nats-server-v$${NATS_VERSION}-$${NATS_ARCH}/nats-server /usr/local/bin/nats-server
-rm -rf "$${NATS_ZIP}" checksums.txt /tmp/nats-extract
+rm -rf "$${NATS_ZIP}" "$${NATS_CHECKSUMS}" /tmp/nats-extract
 
 echo "[nats-bootstrap] NATS server installed: $(nats-server --version)"
 
