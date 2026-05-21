@@ -165,5 +165,5 @@ variable "nats_instance_type" {
 variable "nats_version" {
   description = "NATS server version to install from GitHub releases (semver without 'v' prefix). Pin this for reproducible deploys."
   type        = string
-  default     = "2.10.18"
+  default     = "2.14.1"
 }
