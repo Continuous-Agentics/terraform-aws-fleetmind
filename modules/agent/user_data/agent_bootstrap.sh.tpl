@@ -374,7 +374,7 @@ ExecStartPre=+/usr/local/bin/fetch-agent-secrets $FLEET_NAME $AGENT_ID $ENV_FILE
 # '-' prefix means: don't fail if file missing at unit-load time (it's created by ExecStartPre)
 EnvironmentFile=-$ENV_FILE
 
-ExecStart=$OPENCLAW_BIN gateway
+ExecStart=$OPENCLAW_BIN gateway --allow-unconfigured
 
 StandardOutput=journal
 StandardError=journal
