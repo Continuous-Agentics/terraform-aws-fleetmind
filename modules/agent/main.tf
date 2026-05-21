@@ -80,6 +80,19 @@ resource "aws_iam_role_policy" "secrets" {
           ],
           var.shared_secret_arns,
         )
+      },
+      {
+        Sid    = "SecretsWrite"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:PutSecretValue",
+          "secretsmanager:CreateSecret",
+        ]
+        # Agent writes only its own per-agent secrets (e.g. gateway auth token
+        # generated at bootstrap).
+        Resource = [
+          "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/agents/${var.name}/*",
+        ]
       }
     ]
   })
