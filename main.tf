@@ -81,6 +81,11 @@ module "agent" {
   context_store_enabled       = var.context_store_backend == "dynamodb"
   context_store_table_arn     = coalesce(one(aws_dynamodb_table.context_store[*].arn), "")
   secret_recovery_window_days = var.secret_recovery_window_days
+
+  # NATS subscriber units — written during bootstrap when nats_enabled = true.
+  # The .path unit auto-starts the subscriber the moment fleet.yaml is deployed.
+  nats_enabled    = var.nats_enabled
+  is_orchestrator = lookup(var.agent_orchestrators, each.key, false)
 }
 
 # ── Task-ledger module ────────────────────────────────────────────────────────

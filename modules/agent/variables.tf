@@ -86,3 +86,17 @@ variable "secret_recovery_window_days" {
   type        = number
   default     = 7
 }
+
+# ── NATS subscriber ─────────────────────────────────────────────────────
+
+variable "nats_enabled" {
+  description = "When true, write systemd path + service units for the NATS subscriber during bootstrap. The path unit watches for fleet.yaml and auto-starts the subscriber once fleet.yaml is deployed."
+  type        = bool
+  default     = false
+}
+
+variable "is_orchestrator" {
+  description = "True when this agent is the PM/orchestrator bot. Controls whether the NATS subscriber runs in --mode pm (orchestrator) or --mode worker."
+  type        = bool
+  default     = false
+}

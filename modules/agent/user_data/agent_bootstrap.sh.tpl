@@ -412,4 +412,69 @@ echo "--- journalctl -u amazon-ssm-agent -n 50 --no-pager ---" > /dev/console
 journalctl -u amazon-ssm-agent -n 50 --no-pager > /dev/console 2>&1 || true
 echo "--- end ssm-agent diagnostic ---" > /dev/console
 
+%{ if nats_enabled ~}
+# ── STAGE 14: NATS subscriber units ─────────────────────────────────────────────
+# Write a systemd .path unit that watches for fleet.yaml and auto-starts the
+# NATS subscriber service the moment fleet.yaml is deployed by fleetmind push.
+# No manual intervention needed after deploy.
+echo "[bootstrap] STAGE 14: NATS subscriber units starting at $(date)"
+
+NATS_FLEET_YAML="$WORKSPACE_DIR/fleet.yaml"
+NATS_MODE="%{ if is_orchestrator }pm%{ else }worker%{ endif }"
+NATS_SVC_NAME="fleetmind-nats-$AGENT_ID"
+
+# Path unit: fires once when fleet.yaml appears
+cat > "/etc/systemd/system/$${NATS_SVC_NAME}.path" << EOF
+[Unit]
+Description=Watch for fleet.yaml — start NATS subscriber for $AGENT_ID once config is deployed
+
+[Path]
+PathExists=$NATS_FLEET_YAML
+Unit=$${NATS_SVC_NAME}.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Service unit: long-running fleetmind nats subscribe
+cat > "/etc/systemd/system/$${NATS_SVC_NAME}.service" << EOF
+[Unit]
+Description=FleetMind NATS subscriber ($AGENT_ID, mode=$NATS_MODE) — $FLEET_NAME fleet
+After=openclaw-$AGENT_ID.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=$WORKSPACE_DIR
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+Environment=HOME=$WORKSPACE_DIR
+Environment=PATH=$NODE_BIN:/usr/local/bin:/usr/bin:/bin
+
+%{ if is_orchestrator ~}
+ExecStart=$FLEETMIND_BIN nats subscribe --mode pm --json
+%{ else ~}
+ExecStart=$FLEETMIND_BIN nats subscribe --mode worker --worker-id $AGENT_ID --json
+%{ endif ~}
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=$${NATS_SVC_NAME}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+# Enable the path unit — it activates the service unit automatically
+# when fleet.yaml lands on the instance.
+systemctl enable "$${NATS_SVC_NAME}.path"
+echo "[bootstrap] NATS path unit enabled: $${NATS_SVC_NAME}.path"
+echo "[bootstrap]   Will start $${NATS_SVC_NAME}.service when $NATS_FLEET_YAML appears"
+%{ endif ~}
+
 echo "[bootstrap] Done. Agent $AGENT_ID provisioned (fleet: $FLEET_NAME) — gateway will start on next boot or manual start"
