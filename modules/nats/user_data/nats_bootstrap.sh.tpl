@@ -12,6 +12,10 @@ case "$ARCH" in
   *)        echo "Unsupported arch: $ARCH"; exit 1 ;;
 esac
 
+# ── Ensure dependencies ─────────────────────────────────────────────────────
+# AL2023 standard includes unzip, but be explicit rather than implicit.
+dnf install -y unzip -q
+
 # ── Install NATS server ──────────────────────────────────────────────────────
 echo "[nats-bootstrap] Installing NATS server v$${NATS_VERSION} ($${NATS_ARCH})..."
 cd /tmp
@@ -21,9 +25,15 @@ NATS_BASE_URL="https://github.com/nats-io/nats-server/releases/download/v$${NATS
 curl -fsSL "$${NATS_BASE_URL}/$${NATS_ZIP}" -o "$${NATS_ZIP}"
 curl -fsSL "$${NATS_BASE_URL}/checksums.txt" -o checksums.txt
 
-# Verify SHA256 before installing
+# Verify SHA256 before installing.
+# Two-step: first confirm the filename is present in the checksums file,
+# then verify the hash. Distinct error messages make debugging easier.
+if ! grep -qF "$${NATS_ZIP}" checksums.txt; then
+  echo "[nats-bootstrap] ERROR: $${NATS_ZIP} not found in checksums.txt — unexpected release format?" >&2
+  exit 1
+fi
 if ! grep -F "$${NATS_ZIP}" checksums.txt | sha256sum -c --status; then
-  echo "[nats-bootstrap] ERROR: SHA256 verification failed for $${NATS_ZIP}" >&2
+  echo "[nats-bootstrap] ERROR: SHA256 mismatch for $${NATS_ZIP} — download may be corrupt or tampered" >&2
   exit 1
 fi
 echo "[nats-bootstrap] SHA256 verified."

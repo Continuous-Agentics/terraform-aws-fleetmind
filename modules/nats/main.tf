@@ -134,7 +134,9 @@ resource "aws_service_discovery_service" "nats" {
 
   dns_config {
     namespace_id   = var.cloud_map_namespace_id
-    routing_policy = "WEIGHTED"
+    # MULTIVALUE returns all healthy IPs for the service — correct for a
+    # single-instance registration. WEIGHTED is for traffic-splitting.
+    routing_policy = "MULTIVALUE"
 
     dns_records {
       ttl  = 10
