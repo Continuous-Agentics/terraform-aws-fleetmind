@@ -82,9 +82,9 @@ module "agent" {
   context_store_table_arn     = coalesce(one(aws_dynamodb_table.context_store[*].arn), "")
   secret_recovery_window_days = var.secret_recovery_window_days
 
-  # NATS subscriber units — written during bootstrap when nats_enabled = true.
-  # The .path unit auto-starts the subscriber the moment fleet.yaml is deployed.
-  nats_enabled    = var.nats_enabled
+  # NATS subscriber units are always written — no opt-in needed. The subscriber
+  # exits 0 when delegation.nats is absent from fleet.yaml, so systemd leaves it
+  # alone on non-NATS fleets. is_orchestrator selects --mode pm vs --mode worker.
   is_orchestrator = lookup(var.agent_orchestrators, each.key, false)
 }
 

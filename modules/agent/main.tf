@@ -253,7 +253,6 @@ resource "aws_instance" "agent" {
     node_version      = var.node_version
     aws_region        = var.aws_region
     fleetmind_version = var.fleetmind_version
-    nats_enabled      = var.nats_enabled
     is_orchestrator   = var.is_orchestrator
   }))
 

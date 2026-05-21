@@ -412,7 +412,6 @@ echo "--- journalctl -u amazon-ssm-agent -n 50 --no-pager ---" > /dev/console
 journalctl -u amazon-ssm-agent -n 50 --no-pager > /dev/console 2>&1 || true
 echo "--- end ssm-agent diagnostic ---" > /dev/console
 
-%{ if nats_enabled ~}
 # ── STAGE 14: NATS subscriber units ─────────────────────────────────────────────
 # Write a systemd .path unit that watches for fleet.yaml and auto-starts the
 # NATS subscriber service the moment fleet.yaml is deployed by fleetmind push.
@@ -475,6 +474,5 @@ systemctl daemon-reload
 systemctl enable "$${NATS_SVC_NAME}.path"
 echo "[bootstrap] NATS path unit enabled: $${NATS_SVC_NAME}.path"
 echo "[bootstrap]   Will start $${NATS_SVC_NAME}.service when $NATS_FLEET_YAML appears"
-%{ endif ~}
 
 echo "[bootstrap] Done. Agent $AGENT_ID provisioned (fleet: $FLEET_NAME) — gateway will start on next boot or manual start"
