@@ -469,6 +469,8 @@ cat > "/etc/systemd/system/$${NATS_SVC_NAME}.service" << EOF
 Description=FleetMind NATS subscriber ($AGENT_ID, mode=$NATS_MODE) — $FLEET_NAME fleet
 After=openclaw-$AGENT_ID.service network-online.target
 Wants=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Service]
 Type=simple
@@ -476,11 +478,12 @@ User=ec2-user
 WorkingDirectory=$WORKSPACE_DIR
 Restart=on-failure
 RestartSec=10
-StartLimitBurst=5
-StartLimitIntervalSec=60
 
 Environment=HOME=$WORKSPACE_DIR
 Environment=PATH=$NODE_BIN:/usr/local/bin:/usr/bin:/bin
+Environment=FLEET_YAML=$NATS_FLEET_YAML
+# Loads Slack + Anthropic + gateway tokens so fleet.yaml env var refs resolve
+EnvironmentFile=-$ENV_FILE
 
 %{ if is_orchestrator ~}
 ExecStart=$FLEETMIND_BIN nats subscribe --mode pm --json
