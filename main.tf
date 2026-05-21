@@ -47,7 +47,6 @@ locals {
   # EventBridge rule can target it via SSM Run Command.
   # Falls back to the first agent if no orchestrators are declared.
   pm_agent_names     = [for name in var.agent_names : name if lookup(var.agent_orchestrators, name, false)]
-  wake_instance_name = length(local.pm_agent_names) > 0 ? "${var.fleet_name}-${local.pm_agent_names[0]}" : (length(var.agent_names) > 0 ? "${var.fleet_name}-${var.agent_names[0]}" : "${var.fleet_name}-agent")
 }
 
 # ── One agent submodule per declared agent ────────────────────────────────────
@@ -98,7 +97,6 @@ module "agent" {
 # Required tfvars when enabling:
 #   delegation_enabled      = true
 #   agent_orchestrators     = { conductor = true, forge = false }  # example
-#   wake_target_session_key = "agent:main:slack:channel:<channel_id>"
 
 module "task_ledger" {
   count  = var.delegation_enabled ? 1 : 0
@@ -120,15 +118,6 @@ module "task_ledger" {
     module.agent[name].iam_role_name
     if !lookup(var.agent_orchestrators, name, false)
   ]
-
-  # EventBridge rule targets the primary PM bot's EC2 instance by Name tag.
-  # The Name tag is set inside modules/agent/main.tf: "${fleet_name}-${name}".
-  wake_target_instance_tag_key   = "Name"
-  wake_target_instance_tag_value = local.wake_instance_name
-
-  # OpenClaw session key to wake when a terminal task event fires.
-  # Format: agent:main:slack:channel:<channel_id>
-  wake_target_session_key = var.wake_target_session_key
 
   # Bucket is created at root level (s3.tf) so it always exists regardless of
   # delegation_enabled. Pass both name and ARN in so task-ledger doesn't have

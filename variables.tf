@@ -130,11 +130,6 @@ variable "enable_interface_endpoints" {
   default     = false
 }
 
-variable "wake_target_session_key" {
-  description = "OpenClaw session key used by the task-ledger EventBridge rule to wake the PM bot via SSM Run Command when a terminal task event fires. Format: agent:main:slack:channel:<channel_id>. Required (non-empty) when delegation_enabled = true."
-  type        = string
-  default     = ""
-}
 
 variable "fleetmind_version" {
   description = "Version of @continuous-agentics/fleetmind to install on each agent EC2."
