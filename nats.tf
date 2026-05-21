@@ -13,7 +13,7 @@
 resource "aws_service_discovery_private_dns_namespace" "fleet" {
   count       = var.nats_enabled ? 1 : 0
   name        = "${var.fleet_name}.internal"
-  description = "FleetMind fleet ${var.fleet_name} — private service discovery namespace"
+  description = "FleetMind fleet ${var.fleet_name} - private service discovery namespace"
   vpc         = local.vpc_id
 
   tags = { Name = "${var.fleet_name}-namespace" }

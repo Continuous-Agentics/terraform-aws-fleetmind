@@ -49,7 +49,7 @@ locals {
 
 resource "aws_security_group" "nats" {
   name        = "${var.fleet_name}-nats"
-  description = "FleetMind NATS server — inbound 4222 from fleet agents, egress unrestricted."
+  description = "FleetMind NATS server - inbound 4222 from fleet agents, egress unrestricted."
   vpc_id      = var.vpc_id
 
   # NATS client port — open to fleet agent security group only
