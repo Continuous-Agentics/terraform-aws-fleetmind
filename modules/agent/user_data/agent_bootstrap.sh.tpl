@@ -129,6 +129,22 @@ echo "[bootstrap] STAGE 7a: @openclaw/slack plugin install starting at $(date)"
 sudo -u ec2-user HOME="$WORKSPACE_DIR" openclaw plugins install @openclaw/slack --force
 echo "[bootstrap] @openclaw/slack installed"
 
+# ── Gateway auth token ───────────────────────────────────────────────────────
+# Generate a persistent gateway auth token and store in Secrets Manager so
+# 'fleetmind agent connect' can retrieve it. Stored alongside Slack/Anthropic
+# secrets; fetch-agent-secrets fetches it on every service start.
+echo "[bootstrap] STAGE 7b: gateway token generation at $(date)"
+GATEWAY_TOKEN=$(openssl rand -hex 32)
+aws secretsmanager put-secret-value \
+  --secret-id "$FLEET_NAME/agents/$AGENT_ID/gateway" \
+  --secret-string "{\"GATEWAY_TOKEN\":\"$GATEWAY_TOKEN\"}" \
+  --region "$AWS_REGION" 2>&1 || \
+aws secretsmanager create-secret \
+  --name "$FLEET_NAME/agents/$AGENT_ID/gateway" \
+  --secret-string "{\"GATEWAY_TOKEN\":\"$GATEWAY_TOKEN\"}" \
+  --region "$AWS_REGION" 2>&1
+echo "[bootstrap] Gateway token stored in Secrets Manager"
+
 # ── Secret fetch helper ───────────────────────────────────────────────────────
 echo "[bootstrap] STAGE 8: fetch-secrets helper write starting at $(date)"
 cat > /usr/local/bin/fetch-agent-secrets << 'FETCH_EOF'
@@ -150,6 +166,7 @@ fetch_secret() {
 
 ANTHROPIC=$(fetch_secret "$FLEET/agents/$AGENT/anthropic")
 AGENT_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/slack")
+GATEWAY_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/gateway")
 
 python3 - << PYEOF > "$OUT"
 import json
@@ -161,7 +178,7 @@ def parse(s):
         return {}
 
 agent_upper = "$AGENT".upper()
-combined = {**parse('''$ANTHROPIC'''), **parse('''$AGENT_SECRET''')}
+combined = {**parse('''$ANTHROPIC'''), **parse('''$AGENT_SECRET'''), **parse('''$GATEWAY_SECRET''')}
 for k, v in combined.items():
     # Basic sanitisation: skip values with newlines/quotes that would break env syntax
     v_str = str(v)
@@ -374,7 +391,7 @@ ExecStartPre=+/usr/local/bin/fetch-agent-secrets $FLEET_NAME $AGENT_ID $ENV_FILE
 # '-' prefix means: don't fail if file missing at unit-load time (it's created by ExecStartPre)
 EnvironmentFile=-$ENV_FILE
 
-ExecStart=$OPENCLAW_BIN gateway --allow-unconfigured
+ExecStart=$OPENCLAW_BIN gateway
 
 StandardOutput=journal
 StandardError=journal
