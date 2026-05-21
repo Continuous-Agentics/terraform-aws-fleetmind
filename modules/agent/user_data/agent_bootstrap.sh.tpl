@@ -83,7 +83,9 @@ OPENCLAW_BIN=$(which openclaw)
 echo "[bootstrap] openclaw installed at: $OPENCLAW_BIN"
 
 echo "[bootstrap] STAGE 6a: @openclaw/slack plugin install starting at $(date)"
-npm install -g @openclaw/slack
+# Install via openclaw plugin system (not npm -g) so OpenClaw discovers it correctly.
+# Runs as ec2-user since openclaw runs as ec2-user and plugins are stored per-user.
+sudo -u ec2-user HOME=/home/ec2-user openclaw plugins install @openclaw/slack --force
 echo "[bootstrap] @openclaw/slack installed"
 
 # ── fleetmind CLI ─────────────────────────────────────────────────────────────
