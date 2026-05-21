@@ -266,7 +266,9 @@ resource "aws_instance" "agent" {
     node_version      = var.node_version
     aws_region        = var.aws_region
     fleetmind_version = var.fleetmind_version
+    fleetmind_package = var.fleetmind_package
     is_orchestrator   = var.is_orchestrator
+    gateway_port      = var.gateway_port
   }))
 
   tags = {

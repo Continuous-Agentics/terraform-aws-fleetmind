@@ -85,6 +85,7 @@ module "agent" {
   # exits 0 when delegation.nats is absent from fleet.yaml, so systemd leaves it
   # alone on non-NATS fleets. is_orchestrator selects --mode pm vs --mode worker.
   is_orchestrator = lookup(var.agent_orchestrators, each.key, false)
+  gateway_port    = lookup(var.agent_ports, each.key, 18789)
 }
 
 # ── Task-ledger module ────────────────────────────────────────────────────────

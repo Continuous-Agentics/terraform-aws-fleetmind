@@ -98,3 +98,15 @@ variable "is_orchestrator" {
   type        = bool
   default     = false
 }
+
+variable "gateway_port" {
+  description = "OpenClaw gateway port for this agent. Used by the NATS PM subscriber to construct the OpenClaw webhook URL."
+  type        = number
+  default     = 18789
+}
+
+variable "fleetmind_package" {
+  description = "npm package name for the fleetmind CLI."
+  type        = string
+  default     = "@continuous-agentics/fleetmind"
+}

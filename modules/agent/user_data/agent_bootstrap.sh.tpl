@@ -482,7 +482,9 @@ RestartSec=10
 Environment=HOME=$WORKSPACE_DIR
 Environment=PATH=$NODE_BIN:/usr/local/bin:/usr/bin:/bin
 Environment=FLEET_YAML=$NATS_FLEET_YAML
-# Loads Slack + Anthropic + gateway tokens so fleet.yaml env var refs resolve
+Environment=OPENCLAW_GATEWAY_PORT=${gateway_port}
+# Loads Slack + Anthropic + gateway token so env var refs resolve.
+# GATEWAY_TOKEN from this file is used by the PM subscriber as the webhook secret.
 EnvironmentFile=-$ENV_FILE
 
 %{ if is_orchestrator ~}
