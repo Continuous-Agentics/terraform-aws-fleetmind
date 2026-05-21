@@ -127,6 +127,10 @@ echo "[bootstrap] STAGE 7a: @openclaw/slack plugin install starting at $(date)"
 # Must run after workspace dir exists and is owned by ec2-user.
 # Uses HOME=$WORKSPACE_DIR so plugin lands where the service can find it.
 sudo -u ec2-user HOME="$WORKSPACE_DIR" openclaw plugins install @openclaw/slack --force
+# Remove the stub openclaw.json created by plugins install — it only contains
+# the plugin entry and lacks gateway.mode, causing OpenClaw to refuse startup.
+# The real openclaw.json is delivered by 'fleetmind push fleet'.
+rm -f "$WORKSPACE_DIR/.openclaw/openclaw.json"
 echo "[bootstrap] @openclaw/slack installed"
 
 # ── Gateway auth token ───────────────────────────────────────────────────────
