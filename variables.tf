@@ -151,9 +151,9 @@ variable "secret_recovery_window_days" {
 # ── NATS transport variables ──────────────────────────────────────────────────
 
 variable "nats_enabled" {
-  description = "When true, provisions a single-node NATS server EC2 instance and a Cloud Map private DNS namespace (<fleet_name>.internal). Agents discover the NATS server at nats://<fleet_name>.internal:4222. Default false — opt-in for the feat/nats-transport POC."
+  description = "When true, provisions a single-node NATS server EC2 instance and a Cloud Map private DNS namespace (<fleet_name>.internal). Agents discover the NATS server at nats://<fleet_name>.internal:4222. Default true when delegation is enabled — the standard inter-bot messaging transport. Set false to skip NATS provisioning (rare)."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "nats_instance_type" {
