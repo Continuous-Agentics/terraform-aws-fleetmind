@@ -171,6 +171,7 @@ fetch_secret() {
 ANTHROPIC=$(fetch_secret "$FLEET/agents/$AGENT/anthropic")
 AGENT_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/slack")
 GATEWAY_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/gateway")
+HOOKS_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/hooks")
 
 python3 - << PYEOF > "$OUT"
 import json
@@ -183,6 +184,15 @@ def parse(s):
 
 agent_upper = "$AGENT".upper()
 combined = {**parse('''$ANTHROPIC'''), **parse('''$AGENT_SECRET'''), **parse('''$GATEWAY_SECRET''')}
+
+# Emit hooks token separately with the canonical OPENCLAW_HOOKS_TOKEN name.
+# Must not be merged into 'combined' to avoid accidentally overwriting the
+# alias loop below with a bare HOOKS_TOKEN entry that other tools won't find.
+hooks = parse('''$HOOKS_SECRET''')
+hooks_token = str(hooks.get('HOOKS_TOKEN', ''))
+if hooks_token and '\n' not in hooks_token and "'" not in hooks_token:
+    print(f'OPENCLAW_HOOKS_TOKEN={hooks_token}')
+    print(f'{agent_upper}_HOOKS_TOKEN={hooks_token}')
 for k, v in combined.items():
     # Basic sanitisation: skip values with newlines/quotes that would break env syntax
     v_str = str(v)
