@@ -63,7 +63,8 @@ echo "[bootstrap] Node $(node --version) installed at $NODE_BIN"
 # ── AWS CLI v2 ────────────────────────────────────────────────────────────────
 echo "[bootstrap] STAGE 5: aws cli install/check starting at $(date)"
 if ! aws --version 2>&1 | grep -q "aws-cli/2"; then
-  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+  AWSCLI_ARCH=$(uname -m | sed 's/aarch64/aarch64/;s/x86_64/x86_64/')
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$${AWSCLI_ARCH}.zip" -o /tmp/awscliv2.zip
   unzip -q /tmp/awscliv2.zip -d /tmp
   /tmp/aws/install --update
   rm -rf /tmp/aws /tmp/awscliv2.zip
@@ -122,6 +123,32 @@ mkdir -p "$WORKSPACE_DIR"
 chown -R ec2-user:ec2-user "$WORKSPACE_DIR"
 echo "[bootstrap] Workspace dir: $WORKSPACE_DIR (root volume)"
 
+echo "[bootstrap] STAGE 7a: @openclaw/slack plugin install starting at $(date)"
+# Must run after workspace dir exists and is owned by ec2-user.
+# Uses HOME=$WORKSPACE_DIR so plugin lands where the service can find it.
+sudo -u ec2-user HOME="$WORKSPACE_DIR" openclaw plugins install @openclaw/slack --force
+# Remove the stub openclaw.json created by plugins install — it only contains
+# the plugin entry and lacks gateway.mode, causing OpenClaw to refuse startup.
+# The real openclaw.json is delivered by 'fleetmind push fleet'.
+rm -f "$WORKSPACE_DIR/.openclaw/openclaw.json"
+echo "[bootstrap] @openclaw/slack installed"
+
+# ── Gateway auth token ───────────────────────────────────────────────────────
+# Generate a persistent gateway auth token and store in Secrets Manager so
+# 'fleetmind agent connect' can retrieve it. Stored alongside Slack/Anthropic
+# secrets; fetch-agent-secrets fetches it on every service start.
+echo "[bootstrap] STAGE 7b: gateway token generation at $(date)"
+GATEWAY_TOKEN=$(openssl rand -hex 32)
+aws secretsmanager put-secret-value \
+  --secret-id "$FLEET_NAME/agents/$AGENT_ID/gateway" \
+  --secret-string "{\"GATEWAY_TOKEN\":\"$GATEWAY_TOKEN\"}" \
+  --region "$AWS_REGION" 2>&1 || \
+aws secretsmanager create-secret \
+  --name "$FLEET_NAME/agents/$AGENT_ID/gateway" \
+  --secret-string "{\"GATEWAY_TOKEN\":\"$GATEWAY_TOKEN\"}" \
+  --region "$AWS_REGION" 2>&1
+echo "[bootstrap] Gateway token stored in Secrets Manager"
+
 # ── Secret fetch helper ───────────────────────────────────────────────────────
 echo "[bootstrap] STAGE 8: fetch-secrets helper write starting at $(date)"
 cat > /usr/local/bin/fetch-agent-secrets << 'FETCH_EOF'
@@ -143,6 +170,8 @@ fetch_secret() {
 
 ANTHROPIC=$(fetch_secret "$FLEET/agents/$AGENT/anthropic")
 AGENT_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/slack")
+GATEWAY_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/gateway")
+HOOKS_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/hooks")
 
 python3 - << PYEOF > "$OUT"
 import json
@@ -154,7 +183,16 @@ def parse(s):
         return {}
 
 agent_upper = "$AGENT".upper()
-combined = {**parse('''$ANTHROPIC'''), **parse('''$AGENT_SECRET''')}
+combined = {**parse('''$ANTHROPIC'''), **parse('''$AGENT_SECRET'''), **parse('''$GATEWAY_SECRET''')}
+
+# Emit hooks token separately with the canonical OPENCLAW_HOOKS_TOKEN name.
+# Must not be merged into 'combined' to avoid accidentally overwriting the
+# alias loop below with a bare HOOKS_TOKEN entry that other tools won't find.
+hooks = parse('''$HOOKS_SECRET''')
+hooks_token = str(hooks.get('HOOKS_TOKEN', ''))
+if hooks_token and '\n' not in hooks_token and "'" not in hooks_token:
+    print(f'OPENCLAW_HOOKS_TOKEN={hooks_token}')
+    print(f'{agent_upper}_HOOKS_TOKEN={hooks_token}')
 for k, v in combined.items():
     # Basic sanitisation: skip values with newlines/quotes that would break env syntax
     v_str = str(v)
@@ -411,5 +449,73 @@ systemctl status amazon-ssm-agent --no-pager > /dev/console 2>&1 || true
 echo "--- journalctl -u amazon-ssm-agent -n 50 --no-pager ---" > /dev/console
 journalctl -u amazon-ssm-agent -n 50 --no-pager > /dev/console 2>&1 || true
 echo "--- end ssm-agent diagnostic ---" > /dev/console
+
+# ── STAGE 14: NATS subscriber units ─────────────────────────────────────────────
+# Write a systemd .path unit that watches for fleet.yaml and auto-starts the
+# NATS subscriber service the moment fleet.yaml is deployed by fleetmind push.
+# No manual intervention needed after deploy.
+echo "[bootstrap] STAGE 14: NATS subscriber units starting at $(date)"
+
+NATS_FLEET_YAML="$WORKSPACE_DIR/fleet.yaml"
+NATS_MODE="%{ if is_orchestrator }pm%{ else }worker%{ endif }"
+NATS_SVC_NAME="fleetmind-nats-$AGENT_ID"
+
+# Path unit: fires once when fleet.yaml appears
+cat > "/etc/systemd/system/$${NATS_SVC_NAME}.path" << EOF
+[Unit]
+Description=Watch for fleet.yaml — start NATS subscriber for $AGENT_ID once config is deployed
+
+[Path]
+PathExists=$NATS_FLEET_YAML
+Unit=$${NATS_SVC_NAME}.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Service unit: long-running fleetmind nats subscribe
+cat > "/etc/systemd/system/$${NATS_SVC_NAME}.service" << EOF
+[Unit]
+Description=FleetMind NATS subscriber ($AGENT_ID, mode=$NATS_MODE) — $FLEET_NAME fleet
+After=openclaw-$AGENT_ID.service network-online.target
+Wants=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=$WORKSPACE_DIR
+Restart=on-failure
+RestartSec=10
+
+Environment=HOME=$WORKSPACE_DIR
+Environment=PATH=$NODE_BIN:/usr/local/bin:/usr/bin:/bin
+Environment=FLEET_YAML=$NATS_FLEET_YAML
+Environment=OPENCLAW_GATEWAY_PORT=${gateway_port}
+# Loads Slack + Anthropic + gateway token so env var refs resolve.
+# GATEWAY_TOKEN from this file is used by the PM subscriber as the webhook secret.
+EnvironmentFile=-$ENV_FILE
+
+%{ if is_orchestrator ~}
+ExecStart=$FLEETMIND_BIN nats subscribe --mode pm --json
+%{ else ~}
+ExecStart=$FLEETMIND_BIN nats subscribe --mode worker --worker-id $AGENT_ID --json
+%{ endif ~}
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=$${NATS_SVC_NAME}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+# Enable the path unit — it activates the service unit automatically
+# when fleet.yaml lands on the instance.
+systemctl enable "$${NATS_SVC_NAME}.path"
+echo "[bootstrap] NATS path unit enabled: $${NATS_SVC_NAME}.path"
+echo "[bootstrap]   Will start $${NATS_SVC_NAME}.service when $NATS_FLEET_YAML appears"
 
 echo "[bootstrap] Done. Agent $AGENT_ID provisioned (fleet: $FLEET_NAME) — gateway will start on next boot or manual start"

@@ -12,10 +12,6 @@ output "table_arn" {
   value       = aws_dynamodb_table.tasks.arn
 }
 
-output "table_stream_arn" {
-  description = "ARN of the DynamoDB Streams stream on the tasks table. Used by the EventBridge Pipe."
-  value       = aws_dynamodb_table.tasks.stream_arn
-}
 
 output "s3_bucket_name" {
   description = "S3 bucket name for narrative content."
@@ -40,29 +36,4 @@ output "worker_policy_arn" {
 output "reader_policy_arn" {
   description = "ARN of the bot-ledger-reader policy. Not attached by this module — attach to humans / read-only skills as needed."
   value       = aws_iam_policy.reader.arn
-}
-
-output "pipe_arn" {
-  description = "ARN of the EventBridge Pipe routing DDB stream records to the event bus."
-  value       = aws_pipes_pipe.ddb_to_eb.arn
-}
-
-output "eventbridge_rule_arn" {
-  description = "ARN of the EventBridge rule matching terminal-status events from the Pipe."
-  value       = aws_cloudwatch_event_rule.ddb_terminal.arn
-}
-
-output "alert_topic_arn" {
-  description = "ARN of the SNS topic for DLQ alarm notifications."
-  value       = aws_sns_topic.dlq_alerts.arn
-}
-
-output "wake_dlq_url" {
-  description = "URL of the DLQ for failed EventBridge → SSM wake invocations."
-  value       = aws_sqs_queue.dlq.id
-}
-
-output "pipe_dlq_url" {
-  description = "URL of the DLQ for Pipe-level failures (stream errors, permission drift)."
-  value       = aws_sqs_queue.pipe_dlq.id
 }

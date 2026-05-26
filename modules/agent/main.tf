@@ -80,6 +80,19 @@ resource "aws_iam_role_policy" "secrets" {
           ],
           var.shared_secret_arns,
         )
+      },
+      {
+        Sid    = "SecretsWrite"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:PutSecretValue",
+          "secretsmanager:CreateSecret",
+        ]
+        # Agent writes only its own per-agent secrets (e.g. gateway auth token
+        # generated at bootstrap).
+        Resource = [
+          "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/agents/${var.name}/*",
+        ]
       }
     ]
   })
@@ -185,6 +198,16 @@ locals {
       "ANTHROPIC_API_KEY": "REPLACE_ME_sk-ant-..."
     }
   JSON
+
+  # Placeholder only — the real token is generated at bootstrap time by
+  # agent_bootstrap.sh.tpl (STAGE 7c) and written directly to Secrets Manager
+  # via `aws secretsmanager put-secret-value`. ignore_changes preserves that
+  # bootstrap-generated value across subsequent `terraform apply` runs.
+  hooks_placeholder = <<-JSON
+    {
+      "HOOKS_TOKEN": "PENDING_BOOTSTRAP"
+    }
+  JSON
 }
 
 resource "aws_secretsmanager_secret" "slack" {
@@ -215,6 +238,27 @@ resource "aws_secretsmanager_secret" "anthropic" {
 resource "aws_secretsmanager_secret_version" "anthropic_placeholder" {
   secret_id     = aws_secretsmanager_secret.anthropic.id
   secret_string = local.anthropic_placeholder
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
+# Hooks token secret.
+# The placeholder value is overwritten by the bootstrap script on first start
+# (STAGE 7c in agent_bootstrap.sh.tpl). ignore_changes preserves the
+# bootstrap-generated token on all subsequent applies.
+resource "aws_secretsmanager_secret" "hooks" {
+  name                    = "${var.fleet_name}/agents/${var.name}/hooks"
+  description             = "OpenClaw hooks endpoint token for ${var.fleet_name} agent: ${var.name}"
+  recovery_window_in_days = var.secret_recovery_window_days
+
+  tags = { Agent = var.name }
+}
+
+resource "aws_secretsmanager_secret_version" "hooks_placeholder" {
+  secret_id     = aws_secretsmanager_secret.hooks.id
+  secret_string = local.hooks_placeholder
 
   lifecycle {
     ignore_changes = [secret_string]
@@ -253,6 +297,9 @@ resource "aws_instance" "agent" {
     node_version      = var.node_version
     aws_region        = var.aws_region
     fleetmind_version = var.fleetmind_version
+    fleetmind_package = var.fleetmind_package
+    is_orchestrator   = var.is_orchestrator
+    gateway_port      = var.gateway_port
   }))
 
   tags = {

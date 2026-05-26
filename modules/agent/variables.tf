@@ -86,3 +86,27 @@ variable "secret_recovery_window_days" {
   type        = number
   default     = 7
 }
+
+# ── NATS subscriber ─────────────────────────────────────────────────────
+
+# nats_enabled is intentionally absent. The NATS subscriber units are written
+# for every agent unconditionally. If delegation.nats is not in fleet.yaml the
+# subscriber exits 0 and systemd leaves it alone — no opt-in required.
+
+variable "is_orchestrator" {
+  description = "True when this agent is the PM/orchestrator bot. Controls whether the NATS subscriber runs in --mode pm (orchestrator) or --mode worker."
+  type        = bool
+  default     = false
+}
+
+variable "gateway_port" {
+  description = "OpenClaw gateway port for this agent. Used by the NATS PM subscriber to construct the OpenClaw webhook URL."
+  type        = number
+  default     = 18789
+}
+
+variable "fleetmind_package" {
+  description = "npm package name for the fleetmind CLI."
+  type        = string
+  default     = "@continuous-agentics/fleetmind"
+}
