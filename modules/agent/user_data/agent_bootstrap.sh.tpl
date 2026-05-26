@@ -515,7 +515,11 @@ systemctl daemon-reload
 # Enable the path unit — it activates the service unit automatically
 # when fleet.yaml lands on the instance.
 systemctl enable "$${NATS_SVC_NAME}.path"
-echo "[bootstrap] NATS path unit enabled: $${NATS_SVC_NAME}.path"
+# Start the path unit immediately so it begins watching for fleet.yaml on this boot.
+# Without this, the path unit won't be active and won't trigger the service when
+# fleet.yaml is deployed by 'fleetmind push fleet'.
+systemctl start "$${NATS_SVC_NAME}.path"
+echo "[bootstrap] NATS path unit enabled and started: $${NATS_SVC_NAME}.path"
 echo "[bootstrap]   Will start $${NATS_SVC_NAME}.service when $NATS_FLEET_YAML appears"
 
 echo "[bootstrap] Done. Agent $AGENT_ID provisioned (fleet: $FLEET_NAME) — gateway will start on next boot or manual start"
