@@ -464,6 +464,7 @@ NATS_SVC_NAME="fleetmind-nats-$AGENT_ID"
 cat > "/etc/systemd/system/$${NATS_SVC_NAME}.path" << EOF
 [Unit]
 Description=Watch for fleet.yaml — start NATS subscriber for $AGENT_ID once config is deployed
+StartLimitIntervalSec=0
 
 [Path]
 PathExists=$NATS_FLEET_YAML
@@ -479,23 +480,28 @@ cat > "/etc/systemd/system/$${NATS_SVC_NAME}.service" << EOF
 Description=FleetMind NATS subscriber ($AGENT_ID, mode=$NATS_MODE) — $FLEET_NAME fleet
 After=openclaw-$AGENT_ID.service network-online.target
 Wants=network-online.target
-StartLimitBurst=5
-StartLimitIntervalSec=60
+StartLimitBurst=0
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 User=ec2-user
 WorkingDirectory=$WORKSPACE_DIR
 Restart=on-failure
-RestartSec=10
+RestartSec=30
+LogLevelMax=debug
 
 Environment=HOME=$WORKSPACE_DIR
 Environment=PATH=$NODE_BIN:/usr/local/bin:/usr/bin:/bin
 Environment=FLEET_YAML=$NATS_FLEET_YAML
 Environment=OPENCLAW_GATEWAY_PORT=${gateway_port}
+Environment=NATS_HEALTH_URL=http://nats.$FLEET_NAME.internal:8222/healthz
 # Loads Slack + Anthropic + gateway token so env var refs resolve.
 # GATEWAY_TOKEN from this file is used by the PM subscriber as the webhook secret.
 EnvironmentFile=-$ENV_FILE
+
+# Wait for NATS to come online before starting the subscriber.
+ExecStartPre=/usr/bin/bash -lc 'for i in {1..40}; do if curl -fsS "$NATS_HEALTH_URL" >/dev/null; then exit 0; fi; echo "[nats-subscriber] waiting for $NATS_HEALTH_URL ($i/40)"; sleep 3; done; echo "[nats-subscriber] NATS health check failed after retries"; exit 1'
 
 %{ if is_orchestrator ~}
 ExecStart=$FLEETMIND_BIN nats subscribe --mode pm --json

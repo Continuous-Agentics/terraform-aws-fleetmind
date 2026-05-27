@@ -50,7 +50,7 @@ variable "openclaw_version" {
 }
 
 variable "node_version" {
-  description = "Node.js major version to install via nvm."
+  description = "Node.js major version to install via NodeSource RPMs."
   type        = string
   default     = "22"
 }
@@ -83,12 +83,22 @@ variable "existing_public_subnet_ids" {
   description = "IDs of existing public subnets (2 required) when deploying into an existing VPC."
   type        = list(string)
   default     = []
+
+  validation {
+    condition     = var.vpc_id == "" || length(var.existing_public_subnet_ids) >= 2
+    error_message = "existing_public_subnet_ids must include at least 2 subnet IDs when vpc_id is set."
+  }
 }
 
 variable "existing_private_subnet_ids" {
   description = "IDs of existing private subnets (2 required) when deploying into an existing VPC."
   type        = list(string)
   default     = []
+
+  validation {
+    condition     = var.vpc_id == "" || length(var.existing_private_subnet_ids) >= 2
+    error_message = "existing_private_subnet_ids must include at least 2 subnet IDs when vpc_id is set."
+  }
 }
 
 variable "context_store_backend" {
@@ -166,4 +176,60 @@ variable "nats_version" {
   description = "NATS server version to install from GitHub releases (semver without 'v' prefix). Pin this for reproducible deploys."
   type        = string
   default     = "2.14.1"
+}
+
+variable "nats_auth_token" {
+  description = "Optional NATS auth token. When set, clients must present this token to connect. Leave empty to disable token auth."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "nats_tls_enabled" {
+  description = "Enable TLS listener on the NATS server. Requires nats_tls_cert_pem and nats_tls_key_pem."
+  type        = bool
+  default     = false
+}
+
+variable "nats_tls_cert_pem" {
+  description = "PEM-encoded TLS certificate for the NATS server. Used only when nats_tls_enabled = true."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = !var.nats_tls_enabled || trimspace(var.nats_tls_cert_pem) != ""
+    error_message = "nats_tls_cert_pem must be set when nats_tls_enabled is true."
+  }
+}
+
+variable "nats_tls_key_pem" {
+  description = "PEM-encoded private key for the NATS server TLS certificate. Used only when nats_tls_enabled = true."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = !var.nats_tls_enabled || trimspace(var.nats_tls_key_pem) != ""
+    error_message = "nats_tls_key_pem must be set when nats_tls_enabled is true."
+  }
+}
+
+variable "nats_tls_ca_pem" {
+  description = "Optional PEM-encoded CA certificate for NATS TLS. Set when you want to require client cert validation."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "agent_rollout_trigger" {
+  description = "Arbitrary rollout token for agent instances. Change this value to force replacement when user_data/AMI changes are otherwise ignored."
+  type        = string
+  default     = ""
+}
+
+variable "nats_rollout_trigger" {
+  description = "Arbitrary rollout token for the NATS instance. Change this value to force replacement when user_data/AMI changes are otherwise ignored."
+  type        = string
+  default     = ""
 }

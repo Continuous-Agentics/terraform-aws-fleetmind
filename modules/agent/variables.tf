@@ -110,3 +110,9 @@ variable "fleetmind_package" {
   type        = string
   default     = "@continuous-agentics/fleetmind"
 }
+
+variable "rollout_trigger" {
+  description = "Arbitrary rollout token. Changing this forces EC2 replacement while AMI/user_data drift remains ignored."
+  type        = string
+  default     = ""
+}

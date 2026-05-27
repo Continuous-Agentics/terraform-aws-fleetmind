@@ -109,6 +109,10 @@ resource "aws_iam_instance_profile" "nats" {
   role = aws_iam_role.nats.name
 }
 
+resource "terraform_data" "nats_rollout" {
+  input = var.rollout_trigger
+}
+
 # ── EC2 instance ──────────────────────────────────────────────────────────────
 
 resource "aws_instance" "nats" {
@@ -118,17 +122,29 @@ resource "aws_instance" "nats" {
   vpc_security_group_ids = [aws_security_group.nats.id]
   iam_instance_profile   = aws_iam_instance_profile.nats.name
 
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   # NATS server is internal-only; no public IP needed.
   associate_public_ip_address = false
 
   user_data = base64encode(templatefile("${path.module}/user_data/nats_bootstrap.sh.tpl", {
-    nats_version = var.nats_version
-    fleet_name   = var.fleet_name
+    nats_version      = var.nats_version
+    fleet_name        = var.fleet_name
+    nats_auth_token   = var.nats_auth_token
+    nats_tls_enabled  = var.nats_tls_enabled
+    nats_tls_cert_pem = var.nats_tls_cert_pem
+    nats_tls_key_pem  = var.nats_tls_key_pem
+    nats_tls_ca_pem   = var.nats_tls_ca_pem
   }))
 
   # Prevent replacement when user_data changes after initial deploy.
   lifecycle {
-    ignore_changes = [user_data, ami]
+    ignore_changes       = [user_data, ami]
+    replace_triggered_by = [terraform_data.nats_rollout]
   }
 
   tags = merge(var.tags, { Name = "${var.fleet_name}-nats" })
@@ -142,7 +158,7 @@ resource "aws_service_discovery_service" "nats" {
   namespace_id = var.cloud_map_namespace_id
 
   dns_config {
-    namespace_id   = var.cloud_map_namespace_id
+    namespace_id = var.cloud_map_namespace_id
     # MULTIVALUE returns all healthy IPs for the service — correct for a
     # single-instance registration. WEIGHTED is for traffic-splitting.
     routing_policy = "MULTIVALUE"

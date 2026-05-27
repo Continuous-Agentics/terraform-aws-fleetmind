@@ -265,11 +265,21 @@ resource "aws_secretsmanager_secret_version" "hooks_placeholder" {
   }
 }
 
+resource "terraform_data" "agent_rollout" {
+  input = var.rollout_trigger
+}
+
 # ── EC2 instance ─────────────────────────────────────────────────────────────
 
 resource "aws_instance" "agent" {
   ami           = var.ami_id
   instance_type = var.instance_type
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   # Agents go in private subnets — they only need outbound access (Slack Socket
   # Mode + AWS API via NAT). No public IP required.
@@ -309,6 +319,7 @@ resource "aws_instance" "agent" {
   }
 
   lifecycle {
-    ignore_changes = [ami, user_data_base64]
+    ignore_changes       = [ami, user_data_base64]
+    replace_triggered_by = [terraform_data.agent_rollout]
   }
 }

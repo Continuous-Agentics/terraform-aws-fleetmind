@@ -95,6 +95,113 @@ Full surface in [`variables.tf`](variables.tf) and [`outputs.tf`](outputs.tf). S
 
 > Note: `ledger_bucket_name` is the always-created deploy-staging bucket; `task_ledger_s3_bucket` is the same bucket *as exposed by the task-ledger submodule* and returns an empty string when delegation is disabled. Most consumers should use `ledger_bucket_name`.
 
+## Operational controls
+
+The module includes explicit controls for balancing safety vs. rollout speed:
+
+- `agent_rollout_trigger`
+- `nats_rollout_trigger`
+
+AMI and bootstrap (`user_data`) drift is ignored by default to avoid surprise replacements on `terraform apply`.
+To perform an intentional rollout, change either trigger value (for example from `"2026-05-27a"` to `"2026-05-27b"`) and apply.
+
+NATS transport hardening options are also available:
+
+- `nats_auth_token` (optional token auth)
+- `nats_tls_enabled`
+- `nats_tls_cert_pem`
+- `nats_tls_key_pem`
+- `nats_tls_ca_pem` (optional, for client cert verification)
+
+When TLS is enabled, cert/key PEM values are written on host during bootstrap and referenced in `nats-server.conf`.
+
+## CI checks
+
+GitHub Actions runs Terraform quality and security checks on PRs and `main` pushes:
+
+- `terraform fmt -check -recursive`
+- `terraform init -backend=false`
+- `terraform validate`
+- `tflint --recursive`
+- `tfsec`
+
+## Operational runbook
+
+### Rolling out bootstrap or AMI changes
+
+By default, AMI and bootstrap (`user_data`) drift is **ignored** to prevent surprise instance replacements on apply.
+
+To perform an intentional rollout:
+
+1. Update the rollout trigger token in your `fleet.tfvars`:
+
+```hcl
+# Bump this whenever you want to roll out changes to agents
+agent_rollout_trigger = "2026-05-27-rollout-v1"
+
+# Bump this whenever you want to roll out changes to the NATS server
+nats_rollout_trigger = "2026-05-27-rollout-v1"
+```
+
+2. Apply:
+
+```bash
+terraform apply -var-file=fleet.tfvars
+```
+
+Terraform will replace the affected EC2 instances. Use `-target` to test on a single agent first:
+
+```bash
+terraform apply -target=module.agent[\"agent_name\"] -var-file=fleet.tfvars
+```
+
+### Enabling NATS token authentication and TLS
+
+NATS defaults to VPC-internal, unauthenticated access. For production, enable both:
+
+```hcl
+nats_auth_token   = "YOUR_RANDOM_TOKEN_HERE"  # Or generate: $(openssl rand -hex 32)
+nats_tls_enabled  = true
+nats_tls_cert_pem = file("${path.module}/certs/nats-server.crt")
+nats_tls_key_pem  = file("${path.module}/certs/nats-server.key")
+# Optional: require client cert verification
+nats_tls_ca_pem   = file("${path.module}/certs/ca.crt")
+```
+
+Once enabled:
+- Agents automatically use the token and TLS when connecting to NATS.
+- Token is passed via secret injection; verify with: `aws secretsmanager get-secret-value --secret-id <fleet_name>/agents/<agent_id>/gateway --region <region>`
+- Test connectivity: `nats -s nats://nats.<fleet_name>.internal:4222 --token <token> sub '>'` (from an agent instance)
+
+### Recovering or replacing the NATS instance
+
+The NATS server is stateless (no JetStream) — agents cache fleet config locally. Recovery is straightforward:
+
+**Option 1: Planned replacement** (minimal downtime, ~2 min per agent):
+1. Bump `nats_rollout_trigger` in tfvars.
+2. Run `terraform apply`.
+3. Agents will detect NATS unavailable, wait up to 2 minutes for it to come back online, then start normally.
+
+**Option 2: Immediate emergency replacement**:
+1. Terminate the NATS EC2 instance manually: `aws ec2 terminate-instances --instance-ids <instance-id> --region <region>`
+2. Agents will fail over after ~10 seconds (DNS TTL expires).
+3. Run `terraform apply` to spin up a new NATS instance.
+
+**Option 3: Inspect NATS logs before replacement**:
+```bash
+aws ssm start-session --target <nats-instance-id> --region <region>
+# Inside the instance:
+journalctl -u nats -n 100 --no-pager
+cat /var/log/nats-bootstrap.log
+```
+
+After any NATS replacement, verify agent subscribers are running:
+```bash
+# On any agent instance:
+systemctl status fleetmind-nats-<agent_id>.service
+journalctl -u fleetmind-nats-<agent_id> -n 20 --no-pager
+```
+
 ## Docs
 
 - [`docs/EXISTING-VPC.md`](docs/EXISTING-VPC.md) — deploying into an existing VPC (BYO VPC mode), requirements, current interface-endpoints limitation.

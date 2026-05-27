@@ -44,7 +44,47 @@ variable "ami_id" {
 variable "nats_version" {
   description = "NATS server version to install (from GitHub releases). Pin for reproducibility."
   type        = string
-  default     = "2.10.18"
+  default     = "2.14.1"
+}
+
+variable "nats_auth_token" {
+  description = "Optional auth token for NATS clients. Empty string disables token auth."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "nats_tls_enabled" {
+  description = "Enable TLS on the NATS listener. Requires nats_tls_cert_pem and nats_tls_key_pem."
+  type        = bool
+  default     = false
+}
+
+variable "nats_tls_cert_pem" {
+  description = "PEM-encoded NATS TLS certificate."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "nats_tls_key_pem" {
+  description = "PEM-encoded NATS TLS private key."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "nats_tls_ca_pem" {
+  description = "Optional PEM-encoded CA certificate for client cert verification."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "rollout_trigger" {
+  description = "Arbitrary rollout token. Changing this forces EC2 replacement while AMI/user_data drift remains ignored."
+  type        = string
+  default     = ""
 }
 
 variable "cloud_map_namespace_id" {

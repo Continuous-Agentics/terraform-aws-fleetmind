@@ -46,7 +46,7 @@ locals {
   # Derive the EC2 Name tag value for the primary PM bot so the task-ledger
   # EventBridge rule can target it via SSM Run Command.
   # Falls back to the first agent if no orchestrators are declared.
-  pm_agent_names     = [for name in var.agent_names : name if lookup(var.agent_orchestrators, name, false)]
+  pm_agent_names = [for name in var.agent_names : name if lookup(var.agent_orchestrators, name, false)]
 }
 
 # ── One agent submodule per declared agent ────────────────────────────────────
@@ -58,6 +58,9 @@ locals {
 module "agent" {
   for_each = toset(var.agent_names)
   source   = "./modules/agent"
+  # Ensures NATS resources are provisioned first when enabled. Runtime readiness
+  # is handled inside the subscriber unit with an ExecStartPre health probe.
+  depends_on = [module.nats]
 
   name       = each.key
   fleet_name = var.fleet_name
@@ -86,6 +89,8 @@ module "agent" {
   # alone on non-NATS fleets. is_orchestrator selects --mode pm vs --mode worker.
   is_orchestrator = lookup(var.agent_orchestrators, each.key, false)
   gateway_port    = 18789
+
+  rollout_trigger = var.agent_rollout_trigger
 }
 
 # ── Task-ledger module ────────────────────────────────────────────────────────

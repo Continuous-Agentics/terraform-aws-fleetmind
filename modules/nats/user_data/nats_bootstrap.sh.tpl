@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+exec > >(tee /var/log/nats-bootstrap.log | logger -t nats-bootstrap) 2>&1
 
 NATS_VERSION="${nats_version}"
 FLEET_NAME="${fleet_name}"
@@ -47,10 +48,29 @@ echo "[nats-bootstrap] NATS server installed: $(nats-server --version)"
 # Single-node server. Listens on all interfaces within the VPC.
 # JetStream disabled for the POC (stateless pub/sub only).
 mkdir -p /etc/nats
+%{ if nats_tls_enabled ~}
+mkdir -p /etc/nats/tls
+
+cat > /etc/nats/tls/server.crt <<'NATSCERT'
+${nats_tls_cert_pem}
+NATSCERT
+
+cat > /etc/nats/tls/server.key <<'NATSKEY'
+${nats_tls_key_pem}
+NATSKEY
+
+chmod 600 /etc/nats/tls/server.key
+
+%{ if nats_tls_ca_pem != "" ~}
+cat > /etc/nats/tls/ca.crt <<'NATSCA'
+${nats_tls_ca_pem}
+NATSCA
+%{ endif ~}
+%{ endif ~}
 
 cat > /etc/nats/nats-server.conf <<NATSCONF
 # FleetMind NATS server — fleet: $${FLEET_NAME}
-# Single-node, no auth for VPC-internal use. Add TLS + creds for production.
+# Single-node defaults to VPC-internal use; token auth/TLS are optional via tfvars.
 
 server_name = "$${FLEET_NAME}-nats"
 
@@ -60,6 +80,23 @@ port = 4222
 
 # Cluster monitoring port (internal; security group blocks external access).
 http_port = 8222
+
+%{ if nats_auth_token != "" ~}
+authorization {
+  token = "${nats_auth_token}"
+}
+%{ endif ~}
+
+%{ if nats_tls_enabled ~}
+tls {
+  cert_file = "/etc/nats/tls/server.crt"
+  key_file  = "/etc/nats/tls/server.key"
+%{ if nats_tls_ca_pem != "" ~}
+  ca_file   = "/etc/nats/tls/ca.crt"
+  verify    = true
+%{ endif ~}
+}
+%{ endif ~}
 
 # Connection limits — generous for a fleet of bots.
 max_connections = 1024
