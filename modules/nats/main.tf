@@ -61,6 +61,15 @@ resource "aws_security_group" "nats" {
     security_groups = [var.fleet_sg_id]
   }
 
+  # NATS monitoring endpoint for agent-side health checks (e.g., /healthz)
+  ingress {
+    description     = "NATS monitoring (fleet agents)"
+    from_port       = 8222
+    to_port         = 8222
+    protocol        = "tcp"
+    security_groups = [var.fleet_sg_id]
+  }
+
   # Allow egress (SSM, CloudWatch, NATS health probes)
   egress {
     description = "All outbound"

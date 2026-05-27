@@ -13,33 +13,33 @@ case "$ARCH" in
 esac
 
 # ── Ensure dependencies ─────────────────────────────────────────────────────
-# AL2023 standard includes unzip, but be explicit rather than implicit.
-dnf install -y unzip -q
+# No extra packages needed for tar.gz extraction on AL2023.
 
 # ── Install NATS server ──────────────────────────────────────────────────────
 echo "[nats-bootstrap] Installing NATS server v$${NATS_VERSION} ($${NATS_ARCH})..."
 cd /tmp
-NATS_ZIP="nats-server-v$${NATS_VERSION}-$${NATS_ARCH}.zip"
+NATS_ARCHIVE="nats-server-v$${NATS_VERSION}-$${NATS_ARCH}.tar.gz"
 NATS_BASE_URL="https://github.com/nats-io/nats-server/releases/download/v$${NATS_VERSION}"
 NATS_CHECKSUMS="SHA256SUMS"
 
-curl -fsSL "$${NATS_BASE_URL}/$${NATS_ZIP}" -o "$${NATS_ZIP}"
+curl -fsSL "$${NATS_BASE_URL}/$${NATS_ARCHIVE}" -o "$${NATS_ARCHIVE}"
 curl -fsSL "$${NATS_BASE_URL}/$${NATS_CHECKSUMS}" -o "$${NATS_CHECKSUMS}"
 
 # Verify SHA256 before installing.
-if ! grep -qF "$${NATS_ZIP}" "$${NATS_CHECKSUMS}"; then
-  echo "[nats-bootstrap] ERROR: $${NATS_ZIP} not found in $${NATS_CHECKSUMS} — unexpected release format?" >&2
+if ! grep -qF "$${NATS_ARCHIVE}" "$${NATS_CHECKSUMS}"; then
+  echo "[nats-bootstrap] ERROR: $${NATS_ARCHIVE} not found in $${NATS_CHECKSUMS} — unexpected release format?" >&2
   exit 1
 fi
-if ! grep -F "$${NATS_ZIP}" "$${NATS_CHECKSUMS}" | sha256sum -c --status; then
-  echo "[nats-bootstrap] ERROR: SHA256 mismatch for $${NATS_ZIP} — download may be corrupt or tampered" >&2
+if ! grep -F "$${NATS_ARCHIVE}" "$${NATS_CHECKSUMS}" | sha256sum -c --status; then
+  echo "[nats-bootstrap] ERROR: SHA256 mismatch for $${NATS_ARCHIVE} — download may be corrupt or tampered" >&2
   exit 1
 fi
 echo "[nats-bootstrap] SHA256 verified."
 
-unzip -o "$${NATS_ZIP}" -d /tmp/nats-extract
+mkdir -p /tmp/nats-extract
+tar -xzf "$${NATS_ARCHIVE}" -C /tmp/nats-extract
 install -m 755 /tmp/nats-extract/nats-server-v$${NATS_VERSION}-$${NATS_ARCH}/nats-server /usr/local/bin/nats-server
-rm -rf "$${NATS_ZIP}" "$${NATS_CHECKSUMS}" /tmp/nats-extract
+rm -rf "$${NATS_ARCHIVE}" "$${NATS_CHECKSUMS}" /tmp/nats-extract
 
 echo "[nats-bootstrap] NATS server installed: $(nats-server --version)"
 
