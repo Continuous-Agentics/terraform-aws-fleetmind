@@ -61,9 +61,6 @@ port = 4222
 # Cluster monitoring port (internal; security group blocks external access).
 http_port = 8222
 
-# Log to systemd journal
-log_time = false
-
 # Connection limits — generous for a fleet of bots.
 max_connections = 1024
 max_payload     = 1MB
