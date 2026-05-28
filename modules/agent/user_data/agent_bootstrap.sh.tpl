@@ -500,8 +500,14 @@ Environment=NATS_HEALTH_URL=http://nats.$FLEET_NAME.internal:8222/healthz
 # GATEWAY_TOKEN from this file is used by the PM subscriber as the webhook secret.
 EnvironmentFile=-$ENV_FILE
 
-# Wait for NATS to come online before starting the subscriber.
-ExecStartPre=/usr/bin/bash -lc 'for i in {1..40}; do if curl -fsS "$NATS_HEALTH_URL" >/dev/null; then exit 0; fi; echo "[nats-subscriber] waiting for $NATS_HEALTH_URL ($i/40)"; sleep 3; done; echo "[nats-subscriber] NATS health check failed after retries"; exit 1'
+# Wait for NATS to come online before starting the subscriber. The \$ escapes
+# keep bash from expanding these in the heredoc — NATS_HEALTH_URL comes from
+# the Environment= directive above and is only set when systemd runs the
+# ExecStartPre subshell; \$i is the subshell's loop variable. Without the
+# escapes, bash's `set -u` aborts the heredoc against unbound NATS_HEALTH_URL
+# *after* the > redirect has truncated this file to 0 bytes, killing STAGE 14
+# (the .service file ends up empty and the path unit never gets enabled).
+ExecStartPre=/usr/bin/bash -lc 'for i in {1..40}; do if curl -fsS "\$NATS_HEALTH_URL" >/dev/null; then exit 0; fi; echo "[nats-subscriber] waiting for \$NATS_HEALTH_URL (\$i/40)"; sleep 3; done; echo "[nats-subscriber] NATS health check failed after retries"; exit 1'
 
 %{ if is_orchestrator ~}
 ExecStart=$FLEETMIND_BIN nats subscribe --mode pm --json
