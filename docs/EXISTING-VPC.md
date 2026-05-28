@@ -15,8 +15,8 @@ Set the following variables in your `workspaces/<fleet>.tfvars`:
 
 ```hcl
 vpc_id                       = "vpc-0abc123def456"
-existing_public_subnet_ids   = ["subnet-0aaa...", "subnet-0bbb..."]
-existing_private_subnet_ids  = ["subnet-0ccc...", "subnet-0ddd..."]
+existing_private_subnet_ids  = ["subnet-0ccc...", "subnet-0ddd..."]   # 1+ required, 2+ AZs recommended
+existing_public_subnet_ids   = []                                       # optional; unused today
 
 # var.vpc_cidr is ignored when vpc_id is set; you can leave the default.
 ```
@@ -31,11 +31,11 @@ When `var.vpc_id` is non-empty, the module:
 
 ## Requirements your existing VPC must meet
 
-The module assumes — but does **not** verify automatically (filed as a follow-up) — that:
+The module enforces the bare minimum in the variable schema and assumes the rest:
 
-- **At least 2 private subnets in distinct AZs.** Per-agent EC2s are spread across them. Single-AZ deployments work but lose AZ-isolation properties.
-- **At least 2 public subnets in distinct AZs.** Currently unused by EC2 placement (agents live in private subnets), but required by the variable schema and reserved for future load-balanced topologies.
-- **Outbound internet from private subnets.** Bot bootstrap pulls from GitHub Packages (npm), Anthropic's API, AWS APIs, and SSM. Without NAT or VPC endpoints, bootstrap fails.
+- **At least 1 private subnet** (validated). 2+ in distinct AZs is recommended — agents are round-robin-placed via `% length(subnets)`, and the NATS server uses the first subnet. Single-subnet deployments work but lose AZ-isolation properties.
+- **Public subnets are optional** (no validation; the variable exists for parity with the created-VPC path and to leave room for future public-facing resources like an ALB). Today nothing in the module reads `local.public_subnet_ids` for BYO VPC, so an empty list is fine.
+- **Outbound internet from private subnets.** Bot bootstrap pulls from GitHub Packages (npm), the configured model provider's API, AWS APIs, and SSM. Without NAT or VPC endpoints, bootstrap fails.
 - **DNS resolution + DNS hostnames enabled on the VPC.** Required for SSM and Secrets Manager.
 - **S3 gateway endpoint** (or NAT) in the route tables associated with private subnets. The module's bootstrap downloads tarballs from the fleet's ledger S3 bucket; without an S3 endpoint, you pay NAT for every push.
 

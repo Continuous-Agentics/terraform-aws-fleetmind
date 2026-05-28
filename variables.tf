@@ -80,24 +80,19 @@ variable "vpc_id" {
 }
 
 variable "existing_public_subnet_ids" {
-  description = "IDs of existing public subnets (2 required) when deploying into an existing VPC."
+  description = "IDs of existing public subnets when deploying into an existing VPC. Currently unused by the module — agents and NATS live in private subnets — but accepted for parity with the created-VPC path and to leave room for future public-facing resources (e.g. an ALB). Pass an empty list if you don't have public subnets to share."
   type        = list(string)
   default     = []
-
-  validation {
-    condition     = var.vpc_id == "" || length(var.existing_public_subnet_ids) >= 2
-    error_message = "existing_public_subnet_ids must include at least 2 subnet IDs when vpc_id is set."
-  }
 }
 
 variable "existing_private_subnet_ids" {
-  description = "IDs of existing private subnets (2 required) when deploying into an existing VPC."
+  description = "IDs of existing private subnets (1+ required, 2+ recommended for AZ HA) when deploying into an existing VPC. Agents are round-robin-placed across whatever subnets you provide; NATS uses the first one."
   type        = list(string)
   default     = []
 
   validation {
-    condition     = var.vpc_id == "" || length(var.existing_private_subnet_ids) >= 2
-    error_message = "existing_private_subnet_ids must include at least 2 subnet IDs when vpc_id is set."
+    condition     = var.vpc_id == "" || length(var.existing_private_subnet_ids) >= 1
+    error_message = "existing_private_subnet_ids must include at least 1 subnet ID when vpc_id is set. Provide 2+ subnets in different AZs for HA."
   }
 }
 
