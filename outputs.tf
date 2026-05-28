@@ -31,10 +31,10 @@ output "agent_iam_role_names" {
 }
 
 output "secrets_arns" {
-  description = "Secrets Manager ARNs — slack and anthropic keys per agent."
+  description = "Secrets Manager ARNs — slack and model-provider keys per agent."
   value = merge(
     { for k, m in module.agent : "${k}_slack" => m.slack_secret_arn },
-    { for k, m in module.agent : "${k}_anthropic" => m.anthropic_secret_arn },
+    { for k, m in module.agent : "${k}_model" => m.model_secret_arn },
   )
 }
 

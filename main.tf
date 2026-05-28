@@ -51,7 +51,7 @@ locals {
 
 # ── One agent submodule per declared agent ────────────────────────────────────
 # Each call produces the full per-bot AWS footprint: EC2 instance, IAM role +
-# instance profile + policies, and per-agent Slack + Anthropic secrets.
+# instance profile + policies, and per-agent Slack + model-provider secrets.
 #
 # Cross-cutting policies (task-ledger PM/worker grants) are attached separately
 # by the task-ledger submodule below using module.agent[*].iam_role_name.

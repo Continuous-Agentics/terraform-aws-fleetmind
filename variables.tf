@@ -148,7 +148,7 @@ variable "fleetmind_version" {
 }
 
 variable "secret_recovery_window_days" {
-  description = "AWS Secrets Manager recovery window (days) after deletion. Applied to per-agent Slack and Anthropic secrets. Must be 0 (delete immediately, useful for ephemeral test fleets) or 7–30 (AWS-enforced range)."
+  description = "AWS Secrets Manager recovery window (days) after deletion. Applied to per-agent Slack and model-provider secrets. Must be 0 (delete immediately, useful for ephemeral test fleets) or 7–30 (AWS-enforced range)."
   type        = number
   default     = 7
 

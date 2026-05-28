@@ -23,9 +23,9 @@ output "slack_secret_arn" {
   value       = aws_secretsmanager_secret.slack.arn
 }
 
-output "anthropic_secret_arn" {
-  description = "Secrets Manager ARN for this agent's Anthropic API key."
-  value       = aws_secretsmanager_secret.anthropic.arn
+output "model_secret_arn" {
+  description = "Secrets Manager ARN for this agent's model-provider API keys."
+  value       = aws_secretsmanager_secret.model.arn
 }
 
 output "workspace_path" {

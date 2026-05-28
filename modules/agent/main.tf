@@ -4,7 +4,7 @@
 # Provisions one Fleetmind agent's complete AWS footprint:
 #   - EC2 instance (Amazon Linux 2023, private subnet, SSM-managed)
 #   - IAM role + instance profile with least-privilege scoping
-#   - Per-agent Secrets Manager secrets for Slack tokens + Anthropic API key
+#   - Per-agent Secrets Manager secrets for Slack tokens + model-provider keys
 #
 # Intended to be invoked from the root module via for_each over agent names.
 # Cross-cutting policies (task-ledger PM/worker grants) are attached by the
@@ -193,10 +193,13 @@ locals {
     }
   JSON
 
-  anthropic_placeholder = <<-JSON
-    {
-      "ANTHROPIC_API_KEY": "REPLACE_ME_sk-ant-..."
-    }
+  # Model-provider API keys, keyed by <PROVIDER>_API_KEY. Empty placeholder —
+  # `fleetmind secrets populate` / `onboard` writes the real keys (one entry per
+  # provider the agent uses, e.g. ANTHROPIC_API_KEY and/or OPENAI_API_KEY). The
+  # bootstrap fetch-agent-secrets dumps whatever keys are present into the
+  # gateway env, so this single secret covers any provider mix.
+  model_placeholder = <<-JSON
+    {}
   JSON
 
   # Placeholder only — the real token is generated at bootstrap time by
@@ -227,17 +230,17 @@ resource "aws_secretsmanager_secret_version" "slack_placeholder" {
   }
 }
 
-resource "aws_secretsmanager_secret" "anthropic" {
-  name                    = "${var.fleet_name}/agents/${var.name}/anthropic"
-  description             = "Anthropic API key for ${var.fleet_name} agent: ${var.name}"
+resource "aws_secretsmanager_secret" "model" {
+  name                    = "${var.fleet_name}/agents/${var.name}/model"
+  description             = "Model-provider API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, …) for ${var.fleet_name} agent: ${var.name}"
   recovery_window_in_days = var.secret_recovery_window_days
 
   tags = { Agent = var.name }
 }
 
-resource "aws_secretsmanager_secret_version" "anthropic_placeholder" {
-  secret_id     = aws_secretsmanager_secret.anthropic.id
-  secret_string = local.anthropic_placeholder
+resource "aws_secretsmanager_secret_version" "model_placeholder" {
+  secret_id     = aws_secretsmanager_secret.model.id
+  secret_string = local.model_placeholder
 
   lifecycle {
     ignore_changes = [secret_string]

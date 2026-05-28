@@ -82,7 +82,7 @@ variable "shared_secret_arns" {
 }
 
 variable "secret_recovery_window_days" {
-  description = "recovery_window_in_days for the per-agent Slack + Anthropic secrets."
+  description = "recovery_window_in_days for the per-agent Slack + model-provider secrets."
   type        = number
   default     = 7
 }
