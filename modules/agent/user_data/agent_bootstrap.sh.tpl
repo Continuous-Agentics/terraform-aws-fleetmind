@@ -135,7 +135,7 @@ echo "[bootstrap] @openclaw/slack installed"
 
 # ── Gateway auth token ───────────────────────────────────────────────────────
 # Generate a persistent gateway auth token and store in Secrets Manager so
-# 'fleetmind agent connect' can retrieve it. Stored alongside Slack/Anthropic
+# 'fleetmind agent connect' can retrieve it. Stored alongside Slack/model
 # secrets; fetch-agent-secrets fetches it on every service start.
 echo "[bootstrap] STAGE 7b: gateway token generation at $(date)"
 GATEWAY_TOKEN=$(openssl rand -hex 32)
@@ -168,7 +168,7 @@ fetch_secret() {
     --query SecretString --output text 2>/dev/null || echo "{}"
 }
 
-ANTHROPIC=$(fetch_secret "$FLEET/agents/$AGENT/anthropic")
+MODEL=$(fetch_secret "$FLEET/agents/$AGENT/model")
 AGENT_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/slack")
 GATEWAY_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/gateway")
 HOOKS_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/hooks")
@@ -183,7 +183,7 @@ def parse(s):
         return {}
 
 agent_upper = "$AGENT".upper()
-combined = {**parse('''$ANTHROPIC'''), **parse('''$AGENT_SECRET'''), **parse('''$GATEWAY_SECRET''')}
+combined = {**parse('''$MODEL'''), **parse('''$AGENT_SECRET'''), **parse('''$GATEWAY_SECRET''')}
 
 # Emit hooks token separately with the canonical OPENCLAW_HOOKS_TOKEN name.
 # Must not be merged into 'combined' to avoid accidentally overwriting the
@@ -496,7 +496,7 @@ Environment=PATH=$NODE_BIN:/usr/local/bin:/usr/bin:/bin
 Environment=FLEET_YAML=$NATS_FLEET_YAML
 Environment=OPENCLAW_GATEWAY_PORT=${gateway_port}
 Environment=NATS_HEALTH_URL=http://nats.$FLEET_NAME.internal:8222/healthz
-# Loads Slack + Anthropic + gateway token so env var refs resolve.
+# Loads Slack + model-provider keys + gateway token so env var refs resolve.
 # GATEWAY_TOKEN from this file is used by the PM subscriber as the webhook secret.
 EnvironmentFile=-$ENV_FILE
 
