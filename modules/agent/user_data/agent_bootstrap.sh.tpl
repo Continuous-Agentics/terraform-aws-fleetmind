@@ -149,6 +149,28 @@ aws secretsmanager create-secret \
   --region "$AWS_REGION" 2>&1
 echo "[bootstrap] Gateway token stored in Secrets Manager"
 
+# ── STAGE 7c — webhooks plugin hooks token ────────────────────────────────────
+# The webhooks plugin (used by the NATS subscriber wake path) authenticates
+# inbound POSTs against OPENCLAW_HOOKS_TOKEN. terraform-aws-fleetmind seeds the
+# Secrets Manager value with the literal placeholder "PENDING_BOOTSTRAP"
+# (modules/agent/main.tf hooks_placeholder, with ignore_changes); the comment
+# there promises that "STAGE 7c" generates the real token at bootstrap time.
+# Prior to v0.4.3 STAGE 7c didn't exist, so every fleet shipped with the
+# placeholder as its hooks token — same string everywhere, predictable, no
+# isolation between fleets. This generates the fleet-specific value once at
+# first boot.
+echo "[bootstrap] STAGE 7c: webhooks hooks token generation at $(date)"
+HOOKS_TOKEN=$(openssl rand -hex 32)
+aws secretsmanager put-secret-value \
+  --secret-id "$FLEET_NAME/agents/$AGENT_ID/hooks" \
+  --secret-string "{\"HOOKS_TOKEN\":\"$HOOKS_TOKEN\"}" \
+  --region "$AWS_REGION" 2>&1 || \
+aws secretsmanager create-secret \
+  --name "$FLEET_NAME/agents/$AGENT_ID/hooks" \
+  --secret-string "{\"HOOKS_TOKEN\":\"$HOOKS_TOKEN\"}" \
+  --region "$AWS_REGION" 2>&1
+echo "[bootstrap] Webhooks hooks token stored in Secrets Manager"
+
 # ── Secret fetch helper ───────────────────────────────────────────────────────
 echo "[bootstrap] STAGE 8: fetch-secrets helper write starting at $(date)"
 cat > /usr/local/bin/fetch-agent-secrets << 'FETCH_EOF'
