@@ -1,0 +1,41 @@
+name: Release Please
+
+# Automated tagging + GitHub Release for terraform-aws-fleetmind.
+#
+# How it works (release-please pattern):
+#
+# 1. Every push to `main` runs this workflow.
+# 2. release-please scans commit messages since the last release tag and groups
+#    them by Conventional Commits prefix (feat:, fix:, chore:, docs:, …).
+# 3. It opens (or updates) a single long-lived "release PR" that bumps the
+#    version in `.release-please-manifest.json` and writes a CHANGELOG.md
+#    entry built from those commit messages.
+#    - `feat:` → minor bump (and shows under "Features")
+#    - `fix:`  → patch bump (and shows under "Bug Fixes")
+#    - `feat!:` / `BREAKING CHANGE:` footer → major bump
+# 4. When a human merges that release PR, release-please:
+#      a. tags the merge commit (e.g. `v0.5.0`),
+#      b. creates a GitHub Release using the CHANGELOG section as the body.
+#
+# To cut a release after this lands: merge feature PRs to main using
+# Conventional Commit titles, then merge the release PR that appears.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write       # create tags + GitHub Releases
+  pull-requests: write  # open/update the release PR
+
+jobs:
+  release-please:
+    name: release-please
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          # Config lives in the repo root so it's easy to spot/edit.
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
