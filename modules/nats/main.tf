@@ -9,6 +9,7 @@
 # an ECS Fargate task behind an NLB and update the Cloud Map registration.
 
 terraform {
+  required_version = ">= 1.5"
   required_providers {
     aws = {
       source  = "hashicorp/aws"

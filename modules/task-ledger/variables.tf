@@ -8,12 +8,6 @@ variable "name_prefix" {
   default     = "fleetmind-"
 }
 
-variable "aws_region" {
-  type        = string
-  description = "AWS region for all resources."
-  default     = "us-east-1"
-}
-
 # ── Worker / PM roles ─────────────────────────────────────────────────────────
 
 variable "worker_role_names" {
@@ -40,12 +34,6 @@ variable "s3_bucket_arn" {
   type        = string
   description = "S3 bucket ARN for narrative content. Passed in from the root module so the task-ledger submodule doesn't have to data-lookup a bucket that's created in the same apply."
   # No default — callers must pass the root-level bucket ARN explicitly.
-}
-
-variable "noncurrent_version_expiration_days" {
-  type        = number
-  description = "Days after which noncurrent S3 object versions are expired."
-  default     = 30
 }
 
 # ── Tags ──────────────────────────────────────────────────────────────────────
