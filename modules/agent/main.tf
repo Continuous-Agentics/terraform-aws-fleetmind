@@ -193,14 +193,13 @@ locals {
     }
   JSON
 
-  # Model-provider API keys, keyed by <PROVIDER>_API_KEY. Empty placeholder —
-  # `fleetmind secrets populate` / `onboard` writes the real keys (one entry per
-  # provider the agent uses, e.g. ANTHROPIC_API_KEY and/or OPENAI_API_KEY). The
-  # bootstrap fetch-agent-secrets dumps whatever keys are present into the
-  # gateway env, so this single secret covers any provider mix.
-  model_placeholder = <<-JSON
-    {}
-  JSON
+  # Canonical secret naming — MUST stay in sync with the JS helper in
+  # @continuous-agentics/fleetmind (src/core/secret-names.ts).
+  agent_secret_prefix = "${var.fleet_name}/agents/${var.name}"
+
+  provider_secret_names = {
+    for p in var.model_providers : p => "${local.agent_secret_prefix}/providers/${p}"
+  }
 
   # Placeholder only — the real token is generated at bootstrap time by
   # agent_bootstrap.sh.tpl (STAGE 7c) and written directly to Secrets Manager
@@ -230,17 +229,27 @@ resource "aws_secretsmanager_secret_version" "slack_placeholder" {
   }
 }
 
-resource "aws_secretsmanager_secret" "model" {
-  name                    = "${var.fleet_name}/agents/${var.name}/model"
-  description             = "Model-provider API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, …) for ${var.fleet_name} agent: ${var.name}"
+# Per-provider model-API-key secrets. One secret per (agent, provider). The
+# JSON payload is { "<PROVIDER>_API_KEY": "<value>" }; populated by
+# `fleetmind secrets populate` (fan-out, one PutSecretValue per provider).
+resource "aws_secretsmanager_secret" "provider_key" {
+  for_each = toset(var.model_providers)
+
+  name                    = local.provider_secret_names[each.key]
+  description             = "${upper(each.key)}_API_KEY for ${var.fleet_name} agent: ${var.name}"
   recovery_window_in_days = var.secret_recovery_window_days
 
-  tags = { Agent = var.name }
+  tags = {
+    Agent    = var.name
+    Provider = each.key
+  }
 }
 
-resource "aws_secretsmanager_secret_version" "model_placeholder" {
-  secret_id     = aws_secretsmanager_secret.model.id
-  secret_string = local.model_placeholder
+resource "aws_secretsmanager_secret_version" "provider_key_placeholder" {
+  for_each = aws_secretsmanager_secret.provider_key
+
+  secret_id     = each.value.id
+  secret_string = jsonencode({ "${upper(each.key)}_API_KEY" = "REPLACE_ME" })
 
   lifecycle {
     ignore_changes = [secret_string]
@@ -313,6 +322,7 @@ resource "aws_instance" "agent" {
     fleetmind_package = var.fleetmind_package
     is_orchestrator   = var.is_orchestrator
     gateway_port      = var.gateway_port
+    agent_providers   = join(" ", var.model_providers)
   }))
 
   tags = {

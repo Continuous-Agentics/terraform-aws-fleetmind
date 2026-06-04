@@ -123,6 +123,19 @@ variable "agent_orchestrators" {
   default     = {}
 }
 
+variable "agent_providers" {
+  description = "REQUIRED. Map of agent_id → list of lowercase model-provider tokens (e.g. {ranger = [\"anthropic\"], copilot = [\"anthropic\", \"openai\"]}). Drives per-provider Secrets Manager secrets at <fleet_name>/agents/<agent>/providers/<provider>. Explicit declaration is required — there is no inference from model strings. Every name in var.agent_names must have an entry with at least one provider."
+  type        = map(list(string))
+  validation {
+    condition     = length(var.agent_providers) > 0
+    error_message = "agent_providers must be non-empty and supply a provider list for every agent in agent_names."
+  }
+  validation {
+    condition     = alltrue([for k, v in var.agent_providers : length(v) > 0])
+    error_message = "Every agent in agent_providers must list at least one provider (e.g. [\"anthropic\"])."
+  }
+}
+
 variable "delegation_enabled" {
   description = "Instantiate the task-ledger submodule (DynamoDB task table, S3 narratives bucket, EventBridge Pipe, DLQ infrastructure). Default true — the bot-delegation flow is a core Fleetmind feature. Set false only for fleets that explicitly do not use delegation (e.g. single-bot fleets) to skip the substrate."
   type        = bool

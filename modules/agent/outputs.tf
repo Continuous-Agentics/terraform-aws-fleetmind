@@ -23,9 +23,14 @@ output "slack_secret_arn" {
   value       = aws_secretsmanager_secret.slack.arn
 }
 
-output "model_secret_arn" {
-  description = "Secrets Manager ARN for this agent's model-provider API keys."
-  value       = aws_secretsmanager_secret.model.arn
+output "provider_secret_arns" {
+  description = "Map of provider id → Secrets Manager ARN (per agent)."
+  value       = { for k, s in aws_secretsmanager_secret.provider_key : k => s.arn }
+}
+
+output "provider_secret_names" {
+  description = "Map of provider id → secret name (per agent)."
+  value       = local.provider_secret_names
 }
 
 output "workspace_path" {

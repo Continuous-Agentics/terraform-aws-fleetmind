@@ -31,11 +31,25 @@ output "agent_iam_role_names" {
 }
 
 output "secrets_arns" {
-  description = "Secrets Manager ARNs — slack and model-provider keys per agent."
+  description = "Secrets Manager ARNs — slack secret + per-provider model secrets per agent. Keys are <agent>_slack and <agent>_provider_<provider>."
   value = merge(
     { for k, m in module.agent : "${k}_slack" => m.slack_secret_arn },
-    { for k, m in module.agent : "${k}_model" => m.model_secret_arn },
+    merge([
+      for k, m in module.agent : {
+        for prov, arn in m.provider_secret_arns : "${k}_provider_${prov}" => arn
+      }
+    ]...),
   )
+}
+
+output "agent_provider_secret_arns" {
+  description = "Map of agent_id → (map of provider id → Secrets Manager ARN)."
+  value       = { for k, m in module.agent : k => m.provider_secret_arns }
+}
+
+output "agent_provider_secret_names" {
+  description = "Map of agent_id → (map of provider id → Secrets Manager secret name)."
+  value       = { for k, m in module.agent : k => m.provider_secret_names }
 }
 
 # ── Shared fleet infrastructure outputs ──────────────────────────────────────

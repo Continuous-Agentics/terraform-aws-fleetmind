@@ -60,6 +60,7 @@ module "fleetmind" {
   aws_region              = "us-west-2"
   agent_names             = ["pm", "fe"]
   agent_orchestrators     = { pm = true, fe = false }
+  agent_providers         = { pm = ["anthropic"], fe = ["anthropic"] }   # REQUIRED — explicit list of model providers per agent
   wake_target_session_key = "agent:main:slack:channel:C0123456789"
   delegation_enabled      = true
   # ...see variables.tf for the full input surface
@@ -76,7 +77,7 @@ Use Terraform workspaces (`terraform workspace new <fleet-name>`) to isolate sta
 
 - VPC + subnets + endpoints (via upstream `terraform-aws-modules/vpc/aws` and `//modules/vpc-endpoints`; BYO VPC via `var.vpc_id`)
 - Fleet security group
-- Per-agent EC2 instances, IAM roles, and Secrets Manager placeholders (via `modules/agent/`, one call per agent)
+- Per-agent EC2 instances, IAM roles, and Secrets Manager placeholders (via `modules/agent/`, one call per agent). Model-provider API keys live in one Secrets Manager secret **per (agent, provider)** at `<fleet_name>/agents/<agent>/providers/<provider>`. Slack + hooks secrets remain at the existing `<fleet_name>/agents/<agent>/{slack,hooks}` paths.
 - DynamoDB ContextStore table (when `context_store_backend = "dynamodb"`)
 - *Optional* task-ledger submodule (`var.delegation_enabled = true`): DynamoDB tasks table, S3 narratives bucket, EventBridge Pipe + rule for terminal-state agent wake-ups
 

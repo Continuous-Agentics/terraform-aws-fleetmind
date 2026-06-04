@@ -116,3 +116,12 @@ variable "rollout_trigger" {
   type        = string
   default     = ""
 }
+
+variable "model_providers" {
+  description = "Lowercase model-provider tokens this agent needs API keys for (e.g. [\"anthropic\", \"openai\"]). REQUIRED — explicit provider declaration; no inference from model strings. Each provider gets its own Secrets Manager secret at <fleet_name>/agents/<name>/providers/<provider>. Named model_providers (not just providers) because Terraform reserves the providers meta-argument on module blocks."
+  type        = list(string)
+  validation {
+    condition     = length(var.model_providers) > 0
+    error_message = "model_providers must contain at least one provider id (e.g. [\"anthropic\"]). Explicit provider declaration is required — there is no fallback to inferring from model strings."
+  }
+}
