@@ -43,10 +43,6 @@ data "aws_ami" "al2023" {
 locals {
   ami_id = var.ami_id != "" ? var.ami_id : data.aws_ami.al2023.id
 
-  # Derive the EC2 Name tag value for the primary PM bot so the task-ledger
-  # EventBridge rule can target it via SSM Run Command.
-  # Falls back to the first agent if no orchestrators are declared.
-  pm_agent_names = [for name in var.agent_names : name if lookup(var.agent_orchestrators, name, false)]
 }
 
 # ── One agent submodule per declared agent ────────────────────────────────────
@@ -90,6 +86,8 @@ module "agent" {
   is_orchestrator = lookup(var.agent_orchestrators, each.key, false)
   gateway_port    = 18789
 
+  model_providers = lookup(var.agent_providers, each.key, [])
+
   rollout_trigger = var.agent_rollout_trigger
 }
 
@@ -109,7 +107,6 @@ module "task_ledger" {
   source = "./modules/task-ledger"
 
   name_prefix = "${var.fleet_name}-"
-  aws_region  = var.aws_region
 
   # PM bots get the bot-ledger-pm policy (create/update tasks, write narratives)
   pm_role_names = [

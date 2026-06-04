@@ -29,12 +29,8 @@ terraform {
   }
 }
 
-data "aws_caller_identity" "current" {}
-
 locals {
-  prefix     = var.name_prefix
-  account_id = data.aws_caller_identity.current.account_id
-  region     = var.aws_region
+  prefix = var.name_prefix
 
   table_name = "${local.prefix}tasks"
 

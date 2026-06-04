@@ -190,10 +190,23 @@ fetch_secret() {
     --query SecretString --output text 2>/dev/null || echo "{}"
 }
 
-MODEL=$(fetch_secret "$FLEET/agents/$AGENT/model")
+# AGENT_PROVIDERS is injected at templatefile() render time as a
+# space-separated list (e.g. "anthropic openai"). Per-provider API keys live
+# at $FLEET/agents/$AGENT/providers/<provider> as one JSON object each:
+# { "<PROVIDER>_API_KEY": "<value>" }.
+AGENT_PROVIDERS="${agent_providers}"
+
 AGENT_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/slack")
 GATEWAY_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/gateway")
 HOOKS_SECRET=$(fetch_secret "$FLEET/agents/$AGENT/hooks")
+
+PROVIDER_BLOBS=""
+for prov in $AGENT_PROVIDERS; do
+  blob=$(fetch_secret "$FLEET/agents/$AGENT/providers/$prov")
+  # Newline-separate blobs so the python merge can split cleanly.
+  PROVIDER_BLOBS="$PROVIDER_BLOBS
+$blob"
+done
 
 python3 - << PYEOF > "$OUT"
 import json
@@ -205,7 +218,14 @@ def parse(s):
         return {}
 
 agent_upper = "$AGENT".upper()
-combined = {**parse('''$MODEL'''), **parse('''$AGENT_SECRET'''), **parse('''$GATEWAY_SECRET''')}
+provider_blobs = '''$PROVIDER_BLOBS'''
+model_merged = {}
+for chunk in provider_blobs.splitlines():
+    chunk = chunk.strip()
+    if not chunk:
+        continue
+    model_merged.update(parse(chunk))
+combined = {**model_merged, **parse('''$AGENT_SECRET'''), **parse('''$GATEWAY_SECRET''')}
 
 # Emit hooks token separately with the canonical OPENCLAW_HOOKS_TOKEN name.
 # Must not be merged into 'combined' to avoid accidentally overwriting the

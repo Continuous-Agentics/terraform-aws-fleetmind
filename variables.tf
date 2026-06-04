@@ -79,6 +79,7 @@ variable "vpc_id" {
   default     = ""
 }
 
+# tflint-ignore: terraform_unused_declarations
 variable "existing_public_subnet_ids" {
   description = "IDs of existing public subnets when deploying into an existing VPC. Currently unused by the module — agents and NATS live in private subnets — but accepted for parity with the created-VPC path and to leave room for future public-facing resources (e.g. an ALB). Pass an empty list if you don't have public subnets to share."
   type        = list(string)
@@ -121,6 +122,19 @@ variable "agent_orchestrators" {
   description = "Map of agent_id → bool indicating which agents are PM/orchestrator bots. Used by the task-ledger module to split IAM policy attachments: orchestrators get the pm policy; non-orchestrators get the worker policy."
   type        = map(bool)
   default     = {}
+}
+
+variable "agent_providers" {
+  description = "REQUIRED. Map of agent_id → list of lowercase model-provider tokens (e.g. {ranger = [\"anthropic\"], copilot = [\"anthropic\", \"openai\"]}). Drives per-provider Secrets Manager secrets at <fleet_name>/agents/<agent>/providers/<provider>. Explicit declaration is required — there is no inference from model strings. Every name in var.agent_names must have an entry with at least one provider."
+  type        = map(list(string))
+  validation {
+    condition     = length(var.agent_providers) > 0
+    error_message = "agent_providers must be non-empty and supply a provider list for every agent in agent_names."
+  }
+  validation {
+    condition     = alltrue([for k, v in var.agent_providers : length(v) > 0])
+    error_message = "Every agent in agent_providers must list at least one provider (e.g. [\"anthropic\"])."
+  }
 }
 
 variable "delegation_enabled" {

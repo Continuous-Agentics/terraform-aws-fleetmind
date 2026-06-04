@@ -38,7 +38,6 @@ locals {
   # without caring whether we created the VPC or adopted one.
   vpc_id             = local.create_vpc ? module.vpc[0].vpc_id : var.vpc_id
   vpc_cidr_block     = local.create_vpc ? module.vpc[0].vpc_cidr_block : data.aws_vpc.existing[0].cidr_block
-  public_subnet_ids  = local.create_vpc ? module.vpc[0].public_subnets : var.existing_public_subnet_ids
   private_subnet_ids = local.create_vpc ? module.vpc[0].private_subnets : var.existing_private_subnet_ids
 }
 
