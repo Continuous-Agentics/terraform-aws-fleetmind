@@ -79,6 +79,7 @@ variable "vpc_id" {
   default     = ""
 }
 
+# tflint-ignore: terraform_unused_declarations
 variable "existing_public_subnet_ids" {
   description = "IDs of existing public subnets when deploying into an existing VPC. Currently unused by the module — agents and NATS live in private subnets — but accepted for parity with the created-VPC path and to leave room for future public-facing resources (e.g. an ALB). Pass an empty list if you don't have public subnets to share."
   type        = list(string)
