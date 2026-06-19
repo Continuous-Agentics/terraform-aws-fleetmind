@@ -1,6 +1,8 @@
 # Standalone task-ledger consumption
 
-The `modules/task-ledger/` submodule provisions the delegation substrate (DynamoDB table, S3 narratives bucket, IAM policies, EventBridge Pipe + rule for the wake pipeline). It's normally activated by the root `terraform-aws-fleetmind` module whenever `delegation_enabled = true` — that's the canonical path used by `fleetmind-template`.
+The `modules/task-ledger/` submodule provisions the delegation substrate (DynamoDB table, S3 narratives bucket IAM access, and PM/worker/reader IAM policies). It's normally activated by the root `terraform-aws-fleetmind` module whenever `delegation_enabled = true` — that's the canonical path used by `fleetmind-template`.
+
+> **Note:** There is no longer an EventBridge Pipe / SSM Run Command wake pipeline. Terminal task events reach the PM over NATS push (the `fleetmind nats subscribe` systemd units installed by the agent bootstrap). The submodule no longer creates wake infrastructure and no longer takes any `wake_target_*` inputs.
 
 This doc covers calling the submodule **directly** from your own Terraform root. Use this when:
 - You're integrating delegation into a fleet that doesn't use `fleetmind-template` or the root module.
@@ -38,22 +40,21 @@ provider "aws" {
 }
 
 module "task_ledger" {
-  source = "github.com/Continuous-Agentics/terraform-aws-fleetmind//modules/task-ledger?ref=v0.1.6"
+  source = "github.com/Continuous-Agentics/terraform-aws-fleetmind//modules/task-ledger?ref=v1.0.0"
 
   name_prefix = "my-fleet-"
-  aws_region  = "us-west-2"
 
   # Existing IAM role names (created by your bot EC2 module).
   pm_role_names     = ["my-fleet-pm-bot-role"]
   worker_role_names = ["my-fleet-worker-bot-role"]
 
-  # Wake signaling: SSM Run Command target.
-  wake_target_instance_tag_key   = "Name"
-  wake_target_instance_tag_value = "my-fleet-pm-bot"
-  wake_target_session_key        = "agent:main:slack:channel:C123456789"
-
-  # Optional: email for DLQ alarm notifications.
-  alert_email = "oncall@my-org.example.com"
+  # S3 narratives bucket (name + ARN). The submodule does NOT create the
+  # bucket — pass in one you manage. The root module creates it at s3.tf and
+  # forwards both values; standalone, reference your own bucket resource:
+  #   s3_bucket_name = aws_s3_bucket.my_ledger.bucket
+  #   s3_bucket_arn  = aws_s3_bucket.my_ledger.arn
+  s3_bucket_name = "my-fleet-ledger-narratives"
+  s3_bucket_arn  = "arn:aws:s3:::my-fleet-ledger-narratives"
 
   tags = {
     product = "my-fleet"
@@ -84,17 +85,16 @@ Note the `table_name` and `s3_bucket` outputs — they feed into the consuming f
 
 | Input | Required | Default | Notes |
 |---|---|---|---|
-| `name_prefix` | yes | `"fleetmind-"` | Prefix for all created resources. The variable itself doesn't enforce a trailing `-`, but ending with one produces readable resource names (`fleetmind-tasks` vs `fleetmindtasks`). Resources: `<prefix>tasks` (DDB), `<prefix>ledger` (S3), `<prefix>pm-task-ledger-readwrite` / `<prefix>worker-task-ledger-readwrite` (IAM policies), `<prefix>ledger-pipe-dlq` / `<prefix>ledger-wake-dlq` (DLQs). |
-| `aws_region` | yes | — | Used for SSM target resolution. |
-| `pm_role_names` | yes | — | IAM role names that should be granted PM-side ledger access (read+write all tasks, dispatch wake commands). |
-| `worker_role_names` | yes | — | IAM role names that should be granted worker-side ledger access (read+write own tasks only). |
-| `wake_target_instance_tag_key` | yes | — | Tag key for the EventBridge → SSM Run Command target (the PM EC2). |
-| `wake_target_instance_tag_value` | yes | — | Tag value. |
-| `wake_target_session_key` | yes | — | OpenClaw session key for the PM, e.g. `agent:main:slack:channel:C0123456789`. Used as the `SESSION_KEY` env var in the SSM-invoked `ddb-wake.sh`. |
-| `alert_email` | no | `""` | If set, creates an SNS topic + subscription for DLQ alarms. |
+| `name_prefix` | no | `"fleetmind-"` | Prefix for all created resources. The variable itself doesn't enforce a trailing `-`, but ending with one produces readable resource names (`fleetmind-tasks` vs `fleetmindtasks`). Resources: `<prefix>tasks` (DDB), `<prefix>pm-task-ledger-readwrite` / `<prefix>worker-task-ledger-readwrite` / `<prefix>reader-task-ledger-readonly` (IAM policies). |
+| `pm_role_names` | no | `[]` | IAM role names that should be granted PM-side ledger access (read+write all tasks, write narratives). |
+| `worker_role_names` | no | `[]` | IAM role names that should be granted worker-side ledger access (UpdateItem own tasks, write task `.md` files, read all). |
+| `s3_bucket_name` | yes | — | S3 bucket name for narrative content. The submodule does not create the bucket; pass in one you manage. |
+| `s3_bucket_arn` | yes | — | S3 bucket ARN, matching `s3_bucket_name`. Passed in to avoid a same-apply data lookup race. |
 | `tags` | no | `{}` | Applied to all module-created resources. |
 
-See [`modules/task-ledger/variables.tf`](../modules/task-ledger/variables.tf) for the full input surface including knobs you usually don't touch (DDB billing mode, S3 lifecycle rules, EventBridge filter pattern).
+See [`modules/task-ledger/variables.tf`](../modules/task-ledger/variables.tf) for the full input surface.
+
+There are **no** `wake_target_*`, `aws_region`, or `alert_email` inputs anymore — those belonged to the removed EventBridge Pipe / SSM Run Command wake pipeline. Terminal task events are now delivered to the PM over NATS push.
 
 ---
 
@@ -104,31 +104,34 @@ See [`modules/task-ledger/variables.tf`](../modules/task-ledger/variables.tf) fo
 |---|---|
 | `table_name` | DynamoDB tasks table name. Feed into your agent runtime's `delegation.table_name`. |
 | `s3_bucket_name` | S3 narratives bucket. Feed into your agent runtime's `delegation.s3_bucket`. |
+| `table_arn` | DynamoDB tasks table ARN. |
+| `s3_bucket_arn` | S3 narratives bucket ARN (echoed back from input). |
 | `pm_policy_arn` | Attach to PM bot's IAM role if you didn't pass it via `pm_role_names`. |
 | `worker_policy_arn` | Same for workers. |
-| `pipe_arn`, `eventbridge_rule_arn` | Diagnostic — referenced by the DLQ alarms and visible in EventBridge console. |
+| `reader_policy_arn` | Read-only ledger policy. Not attached by the module — attach to humans / read-only skills as needed. |
 
 ---
 
-## Wake pipeline topology
+## Terminal-event delivery (NATS push)
 
-The submodule wires this end-to-end:
+This submodule no longer wires a wake pipeline. The earlier EventBridge Pipe ->
+EventBridge rule -> SSM Run Command -> `ddb-wake.sh` path (with its two DLQs and
+CloudWatch alarms) was removed.
+
+Terminal task events now reach the PM over NATS push:
 
 ```
-Worker UpdateItem (terminal status: shipped|blocked|abandoned|merged)
-  → DDB Stream record
-  → EventBridge Pipe (filters on terminal statuses)
-  → EventBridge rule
-  → SSM Run Command on PM's EC2
-  → /opt/openclaw/ddb-wake.sh
-  → openclaw agent --message "DDB_TERMINAL_WAKE: TASK#<id>"
+Worker writes terminal status (shipped|blocked|abandoned|merged)
+  -> fleetmind publishes the terminal event to NATS
+  -> PM's `fleetmind nats subscribe --mode pm` systemd unit receives it
+  -> the subscriber wakes the PM's live session directly
 ```
 
-Failure modes are caught by two DLQs:
-- `<prefix>ledger-pipe-dlq` — Pipe couldn't filter/transform the stream record (rare; usually IAM perms)
-- `<prefix>ledger-wake-dlq` — SSM Run Command failed (instance offline, missing tag, missing SSM perms)
-
-CloudWatch alarms on DLQ message-count fire when `alert_email` is set.
+The NATS subscriber units are installed on each agent EC2 by the agent
+bootstrap (see `modules/agent/user_data/agent_bootstrap.sh.tpl`, STAGE 14). The
+session key the subscriber wakes is derived at wake time from the live event,
+not baked into Terraform. Nothing in this submodule needs a `wake_target_*`
+input.
 
 ---
 

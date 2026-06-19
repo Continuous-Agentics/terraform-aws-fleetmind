@@ -138,7 +138,7 @@ variable "agent_providers" {
 }
 
 variable "delegation_enabled" {
-  description = "Instantiate the task-ledger submodule (DynamoDB task table, S3 narratives bucket, EventBridge Pipe, DLQ infrastructure). Default true — the bot-delegation flow is a core Fleetmind feature. Set false only for fleets that explicitly do not use delegation (e.g. single-bot fleets) to skip the substrate."
+  description = "Instantiate the task-ledger submodule (DynamoDB task table, S3 narratives bucket, IAM policies). Default true — the bot-delegation flow is a core Fleetmind feature. Set false only for fleets that explicitly do not use delegation (e.g. single-bot fleets) to skip the substrate. Note: terminal task events reach the PM over NATS push, not an EventBridge Pipe/SSM wake pipeline (that path was removed)."
   type        = bool
   default     = true
 }

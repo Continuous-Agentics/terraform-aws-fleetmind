@@ -2,7 +2,7 @@
 
 Terraform module for [Fleetmind](https://github.com/Continuous-Agentics/fleetmind) — multi-bot fleet infrastructure on AWS.
 
-Provisions a fleet of OpenClaw agent EC2 instances with a DynamoDB ContextStore, optional task-ledger primitives (DynamoDB single-table, S3 narratives bucket, EventBridge Pipe), per-agent IAM roles, VPC + endpoints, and security groups.
+Provisions a fleet of OpenClaw agent EC2 instances with a DynamoDB ContextStore, optional task-ledger primitives (DynamoDB single-table, S3 narratives bucket, IAM policies), per-agent IAM roles, VPC + endpoints, and security groups.
 
 ## Status
 
@@ -61,7 +61,6 @@ module "fleetmind" {
   agent_names             = ["pm", "fe"]
   agent_orchestrators     = { pm = true, fe = false }
   agent_providers         = { pm = ["anthropic"], fe = ["anthropic"] }   # REQUIRED — explicit list of model providers per agent
-  wake_target_session_key = "agent:main:slack:channel:C0123456789"
   delegation_enabled      = true
   # ...see variables.tf for the full input surface
 }
@@ -79,7 +78,7 @@ Use Terraform workspaces (`terraform workspace new <fleet-name>`) to isolate sta
 - Fleet security group
 - Per-agent EC2 instances, IAM roles, and Secrets Manager placeholders (via `modules/agent/`, one call per agent). Model-provider API keys live in one Secrets Manager secret **per (agent, provider)** at `<fleet_name>/agents/<agent>/providers/<provider>`. Slack + hooks secrets remain at the existing `<fleet_name>/agents/<agent>/{slack,hooks}` paths.
 - DynamoDB ContextStore table (when `context_store_backend = "dynamodb"`)
-- *Optional* task-ledger submodule (`var.delegation_enabled = true`): DynamoDB tasks table, S3 narratives bucket, EventBridge Pipe + rule for terminal-state agent wake-ups
+- *Optional* task-ledger submodule (`var.delegation_enabled = true`): DynamoDB tasks table, S3 narratives bucket, and PM/worker IAM policies. Terminal-state agent wake-ups are delivered over NATS push (the `fleetmind nats subscribe` units installed by the agent bootstrap), not an EventBridge Pipe/SSM Run Command wake pipeline (that path was removed).
 
 ## Inputs and outputs
 
