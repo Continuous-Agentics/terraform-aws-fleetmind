@@ -92,8 +92,14 @@ module "agent" {
 }
 
 # ── Task-ledger module ────────────────────────────────────────────────────────
-# Creates the DynamoDB task table, S3 narratives bucket, EventBridge Pipe,
-# and IAM policy attachments for PM and worker bots.
+# Creates the DynamoDB task table, S3 narratives bucket, and IAM policy
+# attachments for PM and worker bots.
+#
+# Terminal task events reach the PM over NATS push (the `fleetmind nats
+# subscribe` units installed by the agent bootstrap), not an EventBridge Pipe
+# -> SSM Run Command wake pipeline. That wake pipeline (and its
+# wake_target_* / ddb-wake.sh machinery) was removed; do not reintroduce
+# wake_target_session_key here.
 #
 # Gated behind var.delegation_enabled (default false) so fleets that don't use
 # the delegation substrate skip it entirely.
