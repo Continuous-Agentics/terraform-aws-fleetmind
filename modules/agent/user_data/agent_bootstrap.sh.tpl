@@ -134,20 +134,31 @@ rm -f "$WORKSPACE_DIR/.openclaw/openclaw.json"
 echo "[bootstrap] @openclaw/slack installed"
 
 # ── Gateway auth token ───────────────────────────────────────────────────────
-# Generate a persistent gateway auth token and store in Secrets Manager so
-# 'fleetmind agent connect' can retrieve it. Stored alongside Slack/model
-# secrets; fetch-agent-secrets fetches it on every service start.
+# The gateway auth token is owned by `fleetmind secrets populate` (it writes a
+# per-agent GATEWAY_TOKEN into <fleet>/agents/<agent>/gateway). This stage is
+# only a fallback for fleets deployed without a populate run: generate + store a
+# token ONLY when the current value is absent or still the "PENDING_BOOTSTRAP"
+# placeholder. Guarding this prevents clobbering a populate-seeded token on every
+# reboot (the bug that left CLI-seeded agents with a token that kept rotating).
 echo "[bootstrap] STAGE 7b: gateway token generation at $(date)"
-GATEWAY_TOKEN=$(openssl rand -hex 32)
-aws secretsmanager put-secret-value \
+GATEWAY_CURRENT=$(aws secretsmanager get-secret-value \
   --secret-id "$FLEET_NAME/agents/$AGENT_ID/gateway" \
-  --secret-string "{\"GATEWAY_TOKEN\":\"$GATEWAY_TOKEN\"}" \
-  --region "$AWS_REGION" 2>&1 || \
-aws secretsmanager create-secret \
-  --name "$FLEET_NAME/agents/$AGENT_ID/gateway" \
-  --secret-string "{\"GATEWAY_TOKEN\":\"$GATEWAY_TOKEN\"}" \
-  --region "$AWS_REGION" 2>&1
-echo "[bootstrap] Gateway token stored in Secrets Manager"
+  --query SecretString --output text \
+  --region "$AWS_REGION" 2>/dev/null || true)
+if [ -z "$GATEWAY_CURRENT" ] || echo "$GATEWAY_CURRENT" | grep -q "PENDING_BOOTSTRAP"; then
+  GATEWAY_TOKEN=$(openssl rand -hex 32)
+  aws secretsmanager put-secret-value \
+    --secret-id "$FLEET_NAME/agents/$AGENT_ID/gateway" \
+    --secret-string "{\"GATEWAY_TOKEN\":\"$GATEWAY_TOKEN\"}" \
+    --region "$AWS_REGION" 2>&1 || \
+  aws secretsmanager create-secret \
+    --name "$FLEET_NAME/agents/$AGENT_ID/gateway" \
+    --secret-string "{\"GATEWAY_TOKEN\":\"$GATEWAY_TOKEN\"}" \
+    --region "$AWS_REGION" 2>&1
+  echo "[bootstrap] Gateway token generated and stored in Secrets Manager"
+else
+  echo "[bootstrap] Gateway token already populated (not placeholder); leaving it unchanged"
+fi
 
 # ── STAGE 7c — webhooks plugin hooks token ────────────────────────────────────
 # The webhooks plugin (used by the NATS subscriber wake path) authenticates
