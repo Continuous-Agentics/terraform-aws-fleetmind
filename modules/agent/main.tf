@@ -210,6 +210,18 @@ locals {
       "HOOKS_TOKEN": "PENDING_BOOTSTRAP"
     }
   JSON
+
+  # Placeholder only. The real gateway auth token is owned by
+  # `fleetmind secrets populate` (src/cli/commands/populate.ts), which writes a
+  # per-agent GATEWAY_TOKEN. As a fallback, bootstrap STAGE 7b generates one on
+  # first boot ONLY when the value is still this placeholder (or absent), so a
+  # populate-seeded token is never clobbered. ignore_changes preserves whichever
+  # real value lands first across subsequent `terraform apply` runs.
+  gateway_placeholder = <<-JSON
+    {
+      "GATEWAY_TOKEN": "PENDING_BOOTSTRAP"
+    }
+  JSON
 }
 
 resource "aws_secretsmanager_secret" "slack" {
@@ -271,6 +283,27 @@ resource "aws_secretsmanager_secret" "hooks" {
 resource "aws_secretsmanager_secret_version" "hooks_placeholder" {
   secret_id     = aws_secretsmanager_secret.hooks.id
   secret_string = local.hooks_placeholder
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
+# Gateway auth token secret.
+# Owned by `fleetmind secrets populate`; bootstrap STAGE 7b only fills it in
+# when still the placeholder. ignore_changes preserves the real value (whether
+# populate-seeded or bootstrap-generated) on all subsequent applies.
+resource "aws_secretsmanager_secret" "gateway" {
+  name                    = "${var.fleet_name}/agents/${var.name}/gateway"
+  description             = "OpenClaw gateway auth token for ${var.fleet_name} agent: ${var.name}"
+  recovery_window_in_days = var.secret_recovery_window_days
+
+  tags = { Agent = var.name }
+}
+
+resource "aws_secretsmanager_secret_version" "gateway_placeholder" {
+  secret_id     = aws_secretsmanager_secret.gateway.id
+  secret_string = local.gateway_placeholder
 
   lifecycle {
     ignore_changes = [secret_string]
