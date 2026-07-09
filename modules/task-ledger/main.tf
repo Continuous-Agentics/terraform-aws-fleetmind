@@ -211,9 +211,27 @@ resource "aws_iam_role_policy_attachment" "pm" {
 }
 
 # ── bot-ledger-worker ─────────────────────────────────────────────────────────
-# Worker bots: UpdateItem only (no PutItem), read DDB, write task narratives.
+# Worker bots: PutItem (self-start rows, CON-91) + UpdateItem (lifecycle
+# transitions), read DDB, write task narratives.
+#
+# PutItem is intentionally granted to support the Worker Self-Start Protocol
+# (CON-91): workers may create their own DDB rows when acting on a Linear-
+# assigned issue without a PM delegation envelope. Protocol-layer checks (not
+# IAM) control when this is appropriate.
+# See https://linear.app/continuous-agentics/issue/CON-91
 
 data "aws_iam_policy_document" "worker" {
+  statement {
+    # CON-91: workers may self-create task rows (Worker Self-Start Protocol).
+    # Scoped to the tasks table only — not Resource "*" and not indexes
+    # (PutItem is a table-level operation; GSI projections are populated
+    # automatically by DynamoDB from the base table write).
+    sid       = "DDBCreateTask"
+    effect    = "Allow"
+    actions   = ["dynamodb:PutItem"]
+    resources = [aws_dynamodb_table.tasks.arn]
+  }
+
   statement {
     sid       = "DDBUpdateTask"
     effect    = "Allow"
@@ -261,7 +279,7 @@ data "aws_iam_policy_document" "worker" {
 
 resource "aws_iam_policy" "worker" {
   name        = "${local.prefix}bot-ledger-worker"
-  description = "Worker bot: UpdateItem DDB task status, write narrative .md files to S3, read all."
+  description = "Worker bot: PutItem/UpdateItem DDB task rows (CON-91 self-start + lifecycle), write narrative .md files to S3, read all."
   policy      = data.aws_iam_policy_document.worker.json
   tags        = local.base_tags
 }
