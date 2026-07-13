@@ -2,7 +2,7 @@
 
 The `modules/task-ledger/` submodule provisions the delegation substrate (DynamoDB table, S3 narratives bucket IAM access, and PM/worker/reader IAM policies). It's normally activated by the root `terraform-aws-fleetmind` module whenever `delegation_enabled = true` — that's the canonical path used by `fleetmind-template`.
 
-> **Note:** There is no longer an EventBridge Pipe / SSM Run Command wake pipeline. Terminal task events reach the PM over NATS push (the `fleetmind nats subscribe` systemd units installed by the agent bootstrap). The submodule no longer creates wake infrastructure and no longer takes any `wake_target_*` inputs.
+> **Note:** There is no longer an EventBridge Pipe / SSM Run Command wake pipeline. Terminal task events reach the PM over NATS push (the `fleetmind nats subscribe` systemd units installed by the agent bootstrap). The submodule no longer creates wake infrastructure.
 
 This doc covers calling the submodule **directly** from your own Terraform root. Use this when:
 - You're integrating delegation into a fleet that doesn't use `fleetmind-template` or the root module.
@@ -94,7 +94,7 @@ Note the `table_name` and `s3_bucket` outputs — they feed into the consuming f
 
 See [`modules/task-ledger/variables.tf`](../modules/task-ledger/variables.tf) for the full input surface.
 
-There are **no** `wake_target_*`, `aws_region`, or `alert_email` inputs anymore — those belonged to the removed EventBridge Pipe / SSM Run Command wake pipeline. Terminal task events are now delivered to the PM over NATS push.
+There are **no** `aws_region` or `alert_email` inputs — those belonged to the removed EventBridge Pipe / SSM Run Command wake pipeline. Terminal task events are delivered to the PM over NATS push.
 
 ---
 
@@ -130,7 +130,7 @@ Worker writes terminal status (shipped|blocked|abandoned|merged)
 The NATS subscriber units are installed on each agent EC2 by the agent
 bootstrap (see `modules/agent/user_data/agent_bootstrap.sh.tpl`, STAGE 14). The
 session key the subscriber wakes is derived at wake time from the live event,
-not baked into Terraform. Nothing in this submodule needs a `wake_target_*`
+not baked into Terraform. Nothing in this submodule needs a wake-target
 input.
 
 ---
