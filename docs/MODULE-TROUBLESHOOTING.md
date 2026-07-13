@@ -112,7 +112,7 @@ The replacement EC2 gets a new instance ID; IAM role, security group, and Secret
 
 **Symptom:** Worker bot updates a task to `shipped` in DDB; PM bot never wakes; no errors in either gateway's log.
 
-**Background:** Terminal task events are delivered to the PM over **NATS push**, not the old EventBridge Pipe -> SSM Run Command wake pipeline. That pipeline (and its `ledger-pipe-dlq` / `ledger-wake-dlq` queues, CloudWatch alarms, and `wake_target_*` inputs) was removed. This module no longer creates any SQS/EventBridge/SSM wake infrastructure, so there are no DLQs to inspect here.
+**Background:** Terminal task events are delivered to the PM over **NATS push**, not the old EventBridge Pipe -> SSM Run Command wake pipeline. That pipeline (and its `ledger-pipe-dlq` / `ledger-wake-dlq` queues and CloudWatch alarms) was removed. This module no longer creates any SQS/EventBridge/SSM wake infrastructure, so there are no DLQs to inspect here.
 
 **Where to look instead** (these live on the agent EC2s, provisioned by `modules/agent/user_data/agent_bootstrap.sh.tpl`, STAGE 14, not by this submodule):
 
