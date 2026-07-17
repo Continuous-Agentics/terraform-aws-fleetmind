@@ -6,9 +6,7 @@ Provisions a fleet of OpenClaw agent EC2 instances with a DynamoDB ContextStore,
 
 ## Status
 
-🚧 *Pre-release.* Extracted from `fleetmind/infra/terraform/` to support module consumption from the upcoming [`fleetmind-template`](https://github.com/Continuous-Agentics/fleetmind/issues/26) repo. First tagged release will be `v0.1.0`.
-
-Existing fleets (gg-sandbox, fleet-test-2) remain on the legacy direct-apply pattern at `Continuous-Agentics/fleetmind/infra/terraform/` until tear-down.
+FleetMind's v1 AWS module baseline. Operators normally consume this module through [`fleetmind-template`](https://github.com/Continuous-Agentics/fleetmind-template). See the FleetMind [compatibility matrix](https://github.com/Continuous-Agentics/fleetmind/blob/main/docs/COMPATIBILITY.md) before upgrading a fleet.
 
 ## Module layout
 
@@ -20,7 +18,7 @@ terraform-aws-fleetmind/
 ├── sg.tf                               # fleet security group
 └── modules/
     ├── agent/                          # one bot: EC2 + IAM role + per-agent secrets
-    └── task-ledger/                    # delegation substrate (DDB + S3 + Pipes + EventBridge)
+    └── task-ledger/                    # delegation substrate (DDB + S3 + IAM)
 ```
 
 Networking is built on upstream [`terraform-aws-modules/vpc/aws`](https://github.com/terraform-aws-modules/terraform-aws-vpc) (pinned `~> 5.0`). BYO VPC is supported via `var.vpc_id` + the `existing_*_subnet_ids` pair.
@@ -54,7 +52,7 @@ provider "aws" {
 }
 
 module "fleetmind" {
-  source = "github.com/Continuous-Agentics/terraform-aws-fleetmind?ref=v0.1.0"
+  source = "github.com/Continuous-Agentics/terraform-aws-fleetmind?ref=v1.1.1"
 
   fleet_name              = "my-fleet"
   aws_region              = "us-west-2"
@@ -207,7 +205,7 @@ journalctl -u fleetmind-nats-<agent_id> -n 20 --no-pager
 - [`docs/EXISTING-VPC.md`](docs/EXISTING-VPC.md) — deploying into an existing VPC (BYO VPC mode), requirements, current interface-endpoints limitation.
 - [`docs/TASK-LEDGER-STANDALONE.md`](docs/TASK-LEDGER-STANDALONE.md) — calling `modules/task-ledger/` directly from your own Terraform root, for callers who don't want the full fleetmind EC2/VPC stack.
 - [`docs/MODULE-TROUBLESHOOTING.md`](docs/MODULE-TROUBLESHOOTING.md) — IaC-side failures: state lock recovery, derived.tfvars propagation, per-agent taint/replace, DLQ inspection, `secret_recovery_window_days` gotchas.
-- [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md) — per-version upgrade notes (baseline: `v0.1.6`).
+- [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md) — per-version upgrade notes.
 
 ## License
 

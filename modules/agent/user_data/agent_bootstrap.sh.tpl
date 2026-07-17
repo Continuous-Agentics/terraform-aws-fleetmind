@@ -83,24 +83,8 @@ OPENCLAW_BIN=$(which openclaw)
 echo "[bootstrap] openclaw installed at: $OPENCLAW_BIN"
 
 # ── fleetmind CLI ─────────────────────────────────────────────────────────────
-# Install @continuous-agentics/fleetmind from GitHub Packages (private, scoped).
-# Auth: a read-only PAT with read:packages scope is stored in SSM as a shared
-# SecureString. All agents in all fleets read the same param.
+# Install @continuous-agentics/fleetmind from public npm.
 echo "[bootstrap] STAGE 6b: fleetmind install starting at $(date)"
-
-GITHUB_PACKAGES_TOKEN=$(aws ssm get-parameter \
-  --name "/fleetmind/shared/github-packages-token" \
-  --with-decryption \
-  --region "$AWS_REGION" \
-  --query Parameter.Value \
-  --output text)
-
-# Write per-instance .npmrc for root (npm install -g runs as root)
-cat > /root/.npmrc << NPMRC_EOF
-//npm.pkg.github.com/:_authToken=$${GITHUB_PACKAGES_TOKEN}
-@continuous-agentics:registry=https://npm.pkg.github.com
-NPMRC_EOF
-chmod 600 /root/.npmrc
 
 echo "[bootstrap] Installing @continuous-agentics/fleetmind@$FLEETMIND_VERSION ..."
 npm install -g "@continuous-agentics/fleetmind@$FLEETMIND_VERSION"
@@ -109,11 +93,6 @@ npm install -g "@continuous-agentics/fleetmind@$FLEETMIND_VERSION"
 FLEETMIND_BIN=$(which fleetmind)
 echo "[bootstrap] fleetmind installed at: $FLEETMIND_BIN"
 fleetmind --version
-
-# Strip the auth token from .npmrc but keep the registry config so that
-# 'fleetmind self-upgrade' can re-auth from SSM and install future versions.
-sed -i '/^.*_authToken.*/d' /root/.npmrc
-echo "[bootstrap] /root/.npmrc auth token removed (registry config retained for self-upgrade)"
 
 # ── Workspace directory for this agent (on root volume) ─────────────────────────
 # Workspace lives on the EC2 root volume. Persistent state belongs in the

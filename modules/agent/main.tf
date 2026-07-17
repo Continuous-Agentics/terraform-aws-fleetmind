@@ -148,33 +148,6 @@ resource "aws_iam_role_policy" "github_app" {
   })
 }
 
-# GitHub Packages auth: shared PAT in SSM. All agents read the same SecureString
-# param. Single point of revocation. The path is fleet-agnostic on purpose.
-resource "aws_iam_role_policy" "github_packages" {
-  name = "${var.fleet_name}-${var.name}-github-packages"
-  role = aws_iam_role.agent.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "GitHubPackagesSSMRead"
-        Effect = "Allow"
-        Action = ["ssm:GetParameter"]
-        Resource = [
-          "arn:aws:ssm:${var.aws_region}:*:parameter/fleetmind/shared/github-packages-token",
-        ]
-      },
-      {
-        Sid      = "GitHubPackagesKMSDecrypt"
-        Effect   = "Allow"
-        Action   = ["kms:Decrypt"]
-        Resource = ["arn:aws:kms:${var.aws_region}:*:key/aws/ssm"]
-      },
-    ]
-  })
-}
-
 resource "aws_iam_instance_profile" "agent" {
   name = "${var.fleet_name}-${var.name}-profile"
   role = aws_iam_role.agent.name

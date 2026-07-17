@@ -10,7 +10,36 @@ If your `terraform plan` after a version bump shows unexpected destroy+create on
 
 ---
 
-## v0.1.6 (current baseline)
+## v1.1.1 (current v1 baseline)
+
+### Behavioral changes
+
+- Agent bootstrap installs `@continuous-agentics/fleetmind` from public npm.
+- The per-agent IAM role no longer includes the shared `/fleetmind/shared/github-packages-token` SSM read policy.
+
+### Operator action
+
+Use this module with FleetMind CLI `0.10.1` or newer and a `fleetmind-template` baseline that no longer requires GitHub Packages setup.
+
+```hcl
+module "fleetmind" {
+  source = "github.com/Continuous-Agentics/terraform-aws-fleetmind?ref=v1.1.1"
+  ...
+}
+```
+
+Then run:
+
+```bash
+terraform init -upgrade
+terraform plan
+```
+
+Expect instance replacement if your existing launch templates/user data were created from a GitHub-Packages bootstrap version.
+
+---
+
+## v0.1.6
 
 The first entry baseline. No migration from a previous version is documented here yet because v0.1.x is the first tagged minor series — operators consuming pre-v0.1.0 commits were on `?ref=main`, not on a tag, and are expected to bump to `?ref=v0.1.6` cleanly without state surgery.
 
