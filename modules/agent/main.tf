@@ -167,7 +167,7 @@ locals {
   JSON
 
   # Canonical secret naming — MUST stay in sync with the JS helper in
-  # @continuous-agentics/fleetmind (src/core/secret-names.ts).
+  # @ggettert/fleetmind (src/core/secret-names.ts).
   agent_secret_prefix = "${var.fleet_name}/agents/${var.name}"
 
   provider_secret_names = {
