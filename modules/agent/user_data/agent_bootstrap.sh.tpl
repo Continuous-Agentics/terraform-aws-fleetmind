@@ -83,11 +83,11 @@ OPENCLAW_BIN=$(which openclaw)
 echo "[bootstrap] openclaw installed at: $OPENCLAW_BIN"
 
 # ── fleetmind CLI ─────────────────────────────────────────────────────────────
-# Install @ggettert/fleetmind from public npm.
+# Install @continuous-agentics/fleetmind from public npm.
 echo "[bootstrap] STAGE 6b: fleetmind install starting at $(date)"
 
-echo "[bootstrap] Installing @ggettert/fleetmind@$FLEETMIND_VERSION ..."
-npm install -g "@ggettert/fleetmind@$FLEETMIND_VERSION"
+echo "[bootstrap] Installing @continuous-agentics/fleetmind@$FLEETMIND_VERSION ..."
+npm install -g "@continuous-agentics/fleetmind@$FLEETMIND_VERSION"
 
 # Verify
 FLEETMIND_BIN=$(which fleetmind)

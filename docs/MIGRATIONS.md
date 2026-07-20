@@ -14,7 +14,7 @@ If your `terraform plan` after a version bump shows unexpected destroy+create on
 
 ### Behavioral changes
 
-- Agent bootstrap installs `@ggettert/fleetmind` from public npm.
+- Agent bootstrap installs `@continuous-agentics/fleetmind` from public npm.
 - The per-agent IAM role no longer includes the shared `/fleetmind/shared/github-packages-token` SSM read policy.
 
 ### Operator action
