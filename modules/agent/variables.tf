@@ -108,7 +108,7 @@ variable "gateway_port" {
 variable "fleetmind_package" {
   description = "npm package name for the fleetmind CLI."
   type        = string
-  default     = "@continuous-agentics/fleetmind"
+  default     = "@ggettert/fleetmind"
 }
 
 variable "rollout_trigger" {
