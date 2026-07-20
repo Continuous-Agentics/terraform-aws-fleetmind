@@ -209,4 +209,4 @@ journalctl -u fleetmind-nats-<agent_id> -n 20 --no-pager
 
 ## License
 
-Proprietary and confidential. Copyright (c) 2026 Continuous Agentics, LLC. All rights reserved. No license or right of use is granted. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
