@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Always grant agent roles read/list access to the fleet bucket's `deploy-staging/` prefix. `fleetmind push fleet` uses this prefix for every fleet, including fleets with `delegation_enabled = false`.
+
 ### Changed
 - Install FleetMind from public npm during agent bootstrap; remove the shared GitHub Packages PAT SSM read policy from agent roles.
 - Refresh README/docs for the v1 module baseline and link to the FleetMind compatibility matrix.

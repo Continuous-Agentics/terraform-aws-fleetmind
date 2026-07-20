@@ -94,3 +94,50 @@ resource "aws_s3_bucket_policy" "ledger" {
   policy     = data.aws_iam_policy_document.ledger_bucket_policy.json
   depends_on = [aws_s3_bucket_public_access_block.ledger]
 }
+
+data "aws_iam_policy_document" "deploy_staging_read" {
+  statement {
+    sid    = "ReadDeployStagingObjects"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+      "s3:GetObjectTagging",
+    ]
+    resources = ["${aws_s3_bucket.ledger.arn}/deploy-staging/*"]
+  }
+
+  statement {
+    sid    = "ListDeployStagingPrefix"
+    effect = "Allow"
+    actions = [
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+    ]
+    resources = [aws_s3_bucket.ledger.arn]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["deploy-staging/*"]
+    }
+  }
+}
+
+resource "aws_iam_policy" "deploy_staging_read" {
+  name        = "${var.fleet_name}-deploy-staging-read"
+  description = "Allow FleetMind agents to pull rendered workspaces from deploy-staging."
+  policy      = data.aws_iam_policy_document.deploy_staging_read.json
+
+  tags = {
+    Project   = var.fleet_name
+    ManagedBy = "terraform"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "deploy_staging_read" {
+  for_each = toset(var.agent_names)
+
+  role       = module.agent[each.key].iam_role_name
+  policy_arn = aws_iam_policy.deploy_staging_read.arn
+}
