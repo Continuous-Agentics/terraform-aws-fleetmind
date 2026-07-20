@@ -35,7 +35,7 @@ The module enforces the bare minimum in the variable schema and assumes the rest
 
 - **At least 1 private subnet** (validated). 2+ in distinct AZs is recommended — agents are round-robin-placed via `% length(subnets)`, and the NATS server uses the first subnet. Single-subnet deployments work but lose AZ-isolation properties.
 - **Public subnets are optional** (no validation; the variable exists for parity with the created-VPC path and to leave room for future public-facing resources like an ALB). Today nothing in the module reads `local.public_subnet_ids` for BYO VPC, so an empty list is fine.
-- **Outbound internet from private subnets.** Bot bootstrap pulls from GitHub Packages (npm), the configured model provider's API, AWS APIs, and SSM. Without NAT or VPC endpoints, bootstrap fails.
+- **Outbound internet from private subnets.** Bot bootstrap pulls FleetMind from public npm, calls the configured model provider's API, AWS APIs, and SSM. Without NAT or VPC endpoints, bootstrap fails.
 - **DNS resolution + DNS hostnames enabled on the VPC.** Required for SSM and Secrets Manager.
 - **S3 gateway endpoint** (or NAT) in the route tables associated with private subnets. The module's bootstrap downloads tarballs from the fleet's ledger S3 bucket; without an S3 endpoint, you pay NAT for every push.
 

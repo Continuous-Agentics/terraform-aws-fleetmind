@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- Entries reconstructed from git history. Each version's commits are listed
      under the tag that sealed them. "Breaking" items are marked with ⚠️.       -->
 
+## [Unreleased]
+
+### Changed
+- Install FleetMind from public npm during agent bootstrap; remove the shared GitHub Packages PAT SSM read policy from agent roles.
+- Refresh README/docs for the v1 module baseline and link to the FleetMind compatibility matrix.
+
 ## [1.1.0] - 2026-07-09
 
 ### Added
