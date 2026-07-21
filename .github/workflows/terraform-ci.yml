@@ -30,8 +30,48 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      - name: Terraform Docs Check (root)
+        uses: terraform-docs/gh-actions@v1.4.1
+        with:
+          working-dir: .
+          config-file: .terraform-docs.yml
+          output-file: README.md
+          output-method: inject
+          git-push: "false"
+          fail-on-diff: "true"
+
+      - name: Terraform Docs Check (basic example)
+        uses: terraform-docs/gh-actions@v1.4.1
+        with:
+          working-dir: examples/basic
+          config-file: ../../.terraform-docs.yml
+          output-file: README.md
+          output-method: inject
+          git-push: "false"
+          fail-on-diff: "true"
+
+      - name: Terraform Docs Check (existing VPC example)
+        uses: terraform-docs/gh-actions@v1.4.1
+        with:
+          working-dir: examples/existing-vpc
+          config-file: ../../.terraform-docs.yml
+          output-file: README.md
+          output-method: inject
+          git-push: "false"
+          fail-on-diff: "true"
+
       - name: Terraform Test
         run: terraform test
+
+      - name: Validate Examples
+        run: |
+          set -euo pipefail
+          for dir in examples/*; do
+            [ -d "$dir" ] || continue
+            echo "==> $dir"
+            terraform -chdir="$dir" init -backend=false
+            terraform -chdir="$dir" validate
+          done
 
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
