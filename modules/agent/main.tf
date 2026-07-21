@@ -56,46 +56,61 @@ resource "aws_iam_role_policy_attachment" "cloudwatch" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
+data "aws_iam_policy_document" "secrets" {
+  statement {
+    sid    = "SecretsRead"
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret",
+    ]
+    # Agent reads its own per-agent secrets + the fleet's shared/* namespace
+    # + any caller-supplied ARNs from var.shared_secret_arns (intended for
+    # AWS-managed secrets whose names the caller can't fully predict).
+    resources = concat(
+      [
+        "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/agents/${var.name}/*",
+        "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/shared/*",
+      ],
+      var.shared_secret_arns,
+    )
+  }
+
+  statement {
+    sid    = "SecretsWrite"
+    effect = "Allow"
+    actions = [
+      "secretsmanager:PutSecretValue",
+      "secretsmanager:CreateSecret",
+    ]
+    # Agent writes only its own per-agent secrets (e.g. gateway auth token
+    # generated at bootstrap).
+    resources = [
+      "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/agents/${var.name}/*",
+    ]
+  }
+}
+
 resource "aws_iam_role_policy" "secrets" {
   name = "${var.fleet_name}-${var.name}-secrets-read"
   role = aws_iam_role.agent.id
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "SecretsRead"
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:DescribeSecret",
-        ]
-        # Agent reads its own per-agent secrets + the fleet's shared/* namespace
-        # + any caller-supplied ARNs from var.shared_secret_arns (intended for
-        # AWS-managed secrets whose names the caller can't fully predict).
-        Resource = concat(
-          [
-            "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/agents/${var.name}/*",
-            "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/shared/*",
-          ],
-          var.shared_secret_arns,
-        )
-      },
-      {
-        Sid    = "SecretsWrite"
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:PutSecretValue",
-          "secretsmanager:CreateSecret",
-        ]
-        # Agent writes only its own per-agent secrets (e.g. gateway auth token
-        # generated at bootstrap).
-        Resource = [
-          "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.fleet_name}/agents/${var.name}/*",
-        ]
-      }
+  policy = data.aws_iam_policy_document.secrets.json
+}
+
+data "aws_iam_policy_document" "dynamodb" {
+  statement {
+    sid    = "DynamoDBContextStore"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:Scan",
+      "dynamodb:Query",
     ]
-  })
+    resources = [var.context_store_table_arn]
+  }
 }
 
 resource "aws_iam_role_policy" "dynamodb" {
@@ -104,48 +119,32 @@ resource "aws_iam_role_policy" "dynamodb" {
   name = "${var.fleet_name}-${var.name}-dynamodb"
   role = aws_iam_role.agent.id
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "DynamoDBContextStore"
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:Scan",
-          "dynamodb:Query",
-        ]
-        Resource = var.context_store_table_arn
-      }
+  policy = data.aws_iam_policy_document.dynamodb.json
+}
+
+data "aws_iam_policy_document" "github_app" {
+  statement {
+    sid     = "GitHubAppSSMRead"
+    effect  = "Allow"
+    actions = ["ssm:GetParameter", "ssm:GetParameters"]
+    resources = [
+      "arn:aws:ssm:${var.aws_region}:*:parameter/fleetmind/${var.fleet_name}/agents/${var.name}/github-app/*",
     ]
-  })
+  }
+
+  statement {
+    sid       = "GitHubAppKMSDecrypt"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = ["arn:aws:kms:${var.aws_region}:*:key/aws/ssm"]
+  }
 }
 
 resource "aws_iam_role_policy" "github_app" {
   name = "${var.fleet_name}-${var.name}-github-app"
   role = aws_iam_role.agent.id
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "GitHubAppSSMRead"
-        Effect = "Allow"
-        Action = ["ssm:GetParameter", "ssm:GetParameters"]
-        Resource = [
-          "arn:aws:ssm:${var.aws_region}:*:parameter/fleetmind/${var.fleet_name}/agents/${var.name}/github-app/*",
-        ]
-      },
-      {
-        Sid      = "GitHubAppKMSDecrypt"
-        Effect   = "Allow"
-        Action   = ["kms:Decrypt"]
-        Resource = ["arn:aws:kms:${var.aws_region}:*:key/aws/ssm"]
-      },
-    ]
-  })
+  policy = data.aws_iam_policy_document.github_app.json
 }
 
 resource "aws_iam_instance_profile" "agent" {
