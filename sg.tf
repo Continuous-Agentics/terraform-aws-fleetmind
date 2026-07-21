@@ -28,6 +28,7 @@ resource "aws_security_group" "fleet" {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
+    #trivy:ignore:AWS-0104 Private agents need outbound Slack Socket Mode and AWS API access; no ingress is allowed by default.
     cidr_blocks = ["0.0.0.0/0"]
   }
 
