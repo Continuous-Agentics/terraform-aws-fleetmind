@@ -45,13 +45,97 @@ Then `terraform init -backend-config=backend.hcl`.
 
 ---
 
-### Concurrent fleet applies break each other
+### Concurrent fleet applies step on each other
 
-**Symptom:** Running `terraform apply` (or `fleetmind push fleet`, which triggers it indirectly) for two different fleets simultaneously against the same AWS account causes intermittent failures — state lock contention, S3 race, SSM target confusion.
+**Symptom:** Running `terraform apply` (or `fleetmind push fleet`, which triggers it indirectly) for two different fleets from the same working directory causes intermittent operator mistakes — wrong selected workspace, wrong tfvars pairing, or SSM/S3 actions aimed at a different fleet than intended.
 
-**Cause:** Workspaces auto-prefix state under `env:/<workspace>/` but share the lock table. Concurrent acquire-attempts on the same backend serialize, but a long-running apply blocks the other; if CI cancels the queued run, you can land in a half-applied state.
+**Cause:** CLI workspaces hide the selected state namespace in local Terraform state (`terraform workspace show`) while fleet-specific variables are supplied separately via `-var-file`. That split makes it easy for a local shell or CI job to pair fleet A's variables with fleet B's selected workspace.
 
-**Fix:** Serialize. Apply one fleet at a time. If you need to parallelize, use separate state buckets per fleet (configure via per-fleet `backend.hcl`).
+**Fix:** Prefer explicit backend `key` values per fleet, as described in ["Migrating from CLI workspaces to explicit backend keys"](#migrating-from-cli-workspaces-to-explicit-backend-keys) below. Explicit keys don't replace normal state locking, but they make the state target visible in backend config/CI logs and remove reliance on the operator's currently selected workspace.
+
+---
+
+## Migrating from CLI workspaces to explicit backend keys
+
+**Symptom:** You have one or more fleets on CLI workspaces (state under `env:/<workspace>/...` in the shared state bucket) and want to move to the recommended explicit-`key` pattern (see [README.md § Consumer setup](../README.md#consumer-setup)) without downtime or state loss.
+
+**Background:** A workspace's state is just an S3 object at `env:/<workspace>/<original-key-path>` (or `env:/<workspace>/terraform.tfstate` if `key` was unset, which is the common case for workspace-based fleets). Moving to an explicit key means copying that state object to a new key and pointing a fresh backend config at it — no resources are touched, so this is not destructive to your infrastructure. Do this per fleet, one at a time.
+
+**Fix:**
+
+1. **Confirm which workspace you're on and back up its state:**
+
+   ```bash
+   terraform workspace show
+   terraform state pull > backup-<fleet>-$(date +%Y%m%d).tfstate
+   ```
+
+   Keep this backup until you've verified the migration (step 5).
+
+2. **Pull the fleet workspace state to a local handoff file:**
+
+   ```bash
+   terraform workspace select <fleet>
+   terraform state pull > /tmp/<fleet>.tfstate
+   ```
+
+   This captures the state object from the workspace-prefixed backend path (for example `env:/<fleet>/...`).
+
+3. **Switch to the `default` workspace before reconfiguring the backend:**
+
+   ```bash
+   terraform workspace select default
+   ```
+
+   This step matters: if you stay on `<fleet>`, Terraform will keep applying the `env:/<fleet>/` workspace prefix even after you configure an explicit `key`.
+
+4. **Decide the new explicit key** and update your backend config (or per-fleet root module) to use it, for example:
+
+   ```hcl
+   backend "s3" {
+     bucket         = "my-fleet-tfstate"
+     key            = "fleets/<fleet>/terraform.tfstate"
+     region         = "us-west-2"
+     dynamodb_table = "my-fleet-tfstate-lock"
+     encrypt        = true
+   }
+   ```
+
+   Don't apply yet — you're just changing config.
+
+5. **Re-initialize against the new key and push the saved state:**
+
+   ```bash
+   terraform init -reconfigure
+   terraform state push /tmp/<fleet>.tfstate
+   ```
+
+   `state push` refuses to overwrite a state with a different lineage/serial without `-force`; don't pass `-force` unless you've confirmed the destination key is empty or is genuinely this fleet's prior state — forcing over the wrong key can silently strand or corrupt another fleet's state.
+
+6. **Verify before touching real infrastructure:**
+
+   ```bash
+   terraform plan -var-file=workspaces/<fleet>.tfvars -var-file=workspaces/<fleet>.derived.tfvars
+   ```
+
+   Expect **no changes**. Any diff here means the migrated state doesn't match what you think it does — stop and compare against the backup from step 1 rather than applying.
+
+7. **Clean up the old workspace** once the plan is clean and you've run at least one successful apply cycle against the new key:
+
+   ```bash
+   terraform workspace select default
+   terraform workspace delete <fleet>
+   ```
+
+   `terraform workspace delete` refuses to remove a workspace with resources still tracked in its state, which is a useful safety check — by this point the old workspace's state should already be empty of that fleet (the state now lives under the new key, not deleted, just relocated).
+
+**If the module version also changed resource addresses** (e.g. a submodule was renamed) as part of this migration, use `terraform state mv` *after* the backend migration, against the new key, the same way you would for any other refactor:
+
+```bash
+terraform state mv 'module.old_address' 'module.new_address'
+```
+
+Moving addresses and migrating backends are independent operations — don't combine them in one step, so a mistake in one doesn't mask a mistake in the other.
 
 ---
 
