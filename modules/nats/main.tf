@@ -77,6 +77,7 @@ resource "aws_security_group" "nats" {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
+    #trivy:ignore:AWS-0104 Private NATS host needs outbound SSM/CloudWatch access; inbound is restricted to fleet agents.
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -131,6 +132,10 @@ resource "aws_instance" "nats" {
 
   # NATS server is internal-only; no public IP needed.
   associate_public_ip_address = false
+
+  root_block_device {
+    encrypted = true
+  }
 
   user_data = base64encode(templatefile("${path.module}/user_data/nats_bootstrap.sh.tpl", {
     nats_version      = var.nats_version

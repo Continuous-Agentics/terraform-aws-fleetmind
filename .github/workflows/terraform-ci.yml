@@ -30,6 +30,9 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      - name: Terraform Test
+        run: terraform test
+
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
 
@@ -37,9 +40,14 @@ jobs:
         run: tflint --init
 
       - name: TFLint
-        run: tflint --recursive
+        run: tflint --recursive --config "$(pwd)/.tflint.hcl"
 
-      - name: tfsec
-        uses: aquasecurity/tfsec-action@v1.0.3
+      - name: Trivy IaC Scan
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
-          soft_fail: false
+          scan-type: config
+          scan-ref: .
+          exit-code: "1"
+          severity: "CRITICAL,HIGH"
+          skip-dirs: ".terraform"
+          hide-progress: true

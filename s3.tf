@@ -41,6 +41,7 @@ resource "aws_s3_bucket_versioning" "ledger" {
   }
 }
 
+#trivy:ignore:AWS-0132 SSE-S3 is the module default to avoid forcing consumers to create/manage a CMK.
 resource "aws_s3_bucket_server_side_encryption_configuration" "ledger" {
   bucket = aws_s3_bucket.ledger.id
   rule {
