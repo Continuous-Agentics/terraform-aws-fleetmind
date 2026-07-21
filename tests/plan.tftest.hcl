@@ -76,3 +76,13 @@ run "minimal_fleet_plan_succeeds" {
     nats_enabled        = false
   }
 }
+
+# Created-VPC path with interface endpoints enabled: exercises the optional
+# endpoint security group and vpc-endpoints submodule wiring without real AWS.
+run "interface_endpoints_plan_succeeds" {
+  command = plan
+
+  variables {
+    enable_interface_endpoints = true
+  }
+}
