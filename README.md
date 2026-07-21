@@ -64,7 +64,9 @@ module "fleetmind" {
 }
 ```
 
-Use Terraform workspaces (`terraform workspace new <fleet-name>`) to isolate state per fleet — the backend `key` is intentionally not set so workspaces auto-prefix state files with `env:/<workspace>/`.
+**Recommended: explicit per-fleet root stacks with explicit backend keys.** Give each fleet its own state by setting a distinct `key` in the consumer's `backend "s3"` block, for example `key = "fleets/<fleet-name>/terraform.tfstate"`. Do this either by maintaining a separate root module directory per fleet (e.g. `fleets/<fleet-name>/main.tf`, each with its own hardcoded `backend "s3" { key = ... }`), or with a single root module plus a small wrapper (`terraform init -backend-config="key=fleets/<fleet-name>/terraform.tfstate" -reconfigure`) driven per-fleet from CI/CD. Explicit keys make each fleet's state independently discoverable in the S3 console/CLI, make CI logs and IAM/bucket policies easier to reason about, and avoid relying on the operator's currently selected CLI workspace.
+
+**CLI workspaces (`terraform workspace new <fleet-name>`) are supported only as an optional, ephemeral/dev-only variant** — quick to spin up for a scratch fleet or local experiment, where the backend `key` is left unset so workspaces auto-prefix state under `env:/<workspace>/`. Don't use bare workspaces for anything you intend to keep around or run in CI: it's easy to `terraform workspace select` the wrong fleet and apply against the wrong state, and workspace-derived state paths are less explicit in reviews and runbooks. If you're currently on workspaces and want to move to explicit keys, see ["Migrating from CLI workspaces to explicit backend keys"](docs/MODULE-TROUBLESHOOTING.md#migrating-from-cli-workspaces-to-explicit-backend-keys) in `MODULE-TROUBLESHOOTING.md`.
 
 ## ContextStore backend
 
