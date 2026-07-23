@@ -30,7 +30,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 6.0"
+      version = "~> 5.0"
     }
   }
 }
@@ -40,7 +40,7 @@ provider "aws" {
 }
 
 module "task_ledger" {
-  source = "github.com/Continuous-Agentics/terraform-aws-fleetmind//modules/task-ledger?ref=v1.0.0"
+  source = "github.com/Continuous-Agentics/terraform-aws-fleetmind//modules/task-ledger?ref=v1.1.9"
 
   name_prefix = "my-fleet-"
 
@@ -87,7 +87,7 @@ Note the `table_name` and `s3_bucket` outputs — they feed into the consuming f
 |---|---|---|---|
 | `name_prefix` | no | `"fleetmind-"` | Prefix for all created resources. The variable itself doesn't enforce a trailing `-`, but ending with one produces readable resource names (`fleetmind-tasks` vs `fleetmindtasks`). Resources: `<prefix>tasks` (DDB), `<prefix>pm-task-ledger-readwrite` / `<prefix>worker-task-ledger-readwrite` / `<prefix>reader-task-ledger-readonly` (IAM policies). |
 | `pm_role_names` | no | `[]` | IAM role names that should be granted PM-side ledger access (read+write all tasks, write narratives). |
-| `worker_role_names` | no | `[]` | IAM role names that should be granted worker-side ledger access (UpdateItem own tasks, write task `.md` files, read all). |
+| `worker_role_names` | no | `[]` | IAM role names that should be granted worker-side ledger access (PutItem for self-start rows, UpdateItem lifecycle transitions, write task `.md` files, read all). |
 | `s3_bucket_name` | yes | — | S3 bucket name for narrative content. The submodule does not create the bucket; pass in one you manage. |
 | `s3_bucket_arn` | yes | — | S3 bucket ARN, matching `s3_bucket_name`. Passed in to avoid a same-apply data lookup race. |
 | `tags` | no | `{}` | Applied to all module-created resources. |
