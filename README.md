@@ -80,6 +80,35 @@ module "fleetmind" {
 - DynamoDB ContextStore table (when `context_store_backend = "dynamodb"`)
 - *Optional* task-ledger submodule (`var.delegation_enabled = true`): DynamoDB tasks table, S3 narratives bucket, and PM/worker IAM policies. Terminal-state agent wake-ups are delivered over NATS push (the `fleetmind nats subscribe` units installed by the agent bootstrap), not an EventBridge Pipe/SSM Run Command wake pipeline (that path was removed).
 
+## Agent runtime baseline
+
+Each agent host uses a practical, user-owned OpenClaw runtime rather than a
+locked-down system account. Bootstrap installs Node/npm and Docker, then
+idempotently creates/reconciles the `openclaw` account (`/home/openclaw`, Bash)
+and grants it Docker-group access. The gateway and FleetMind NATS subscriber are
+both `systemd --user` services for that account. They share the same HOME,
+npm-capable PATH, workspace, and user-owned fetched-secret file; lingering keeps
+the user manager available across logout and boot. Normal gateway/subscriber
+operations do not require sudo.
+
+The established workspace path remains `/opt/openclaw/workspace/<agent>` so
+existing rendered fleets continue to deploy to the same location. Bootstrap
+links `/home/openclaw/.openclaw` to that workspace state, allowing OpenClaw to
+use its actual account home without changing the current workspace contract.
+
+> **Companion work required before using `fleetmind push ... --restart` with
+> this module baseline:** this module intentionally does not modify the
+> FleetMind CLI or template. A FleetMind CLI change must (1) make its AWS SSM
+> pull-self command run `fleetmind` as `openclaw` with HOME, PATH,
+> `XDG_RUNTIME_DIR`, and the user D-Bus address set, and (2) replace the Linux
+> service manager's `sudo systemctl` calls with `systemctl --user` restarts and
+> reset-failed calls for both `openclaw-<agent>` and
+> `fleetmind-nats-<agent>`. The FleetMind template needs corresponding operating
+> and troubleshooting documentation updates: refer to the `openclaw` account
+> and `systemctl --user`, remove the `ec2-user` sudoers workaround, and preserve
+> its existing `/opt/openclaw/workspace` setting. No template schema or
+> workspace-path change is needed.
+
 ## Examples
 
 - [`examples/basic`](examples/basic) — two-agent fleet with module-managed VPC, NATS, ContextStore, deploy-staging bucket, and task-ledger substrate.
