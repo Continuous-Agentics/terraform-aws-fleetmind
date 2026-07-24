@@ -23,9 +23,14 @@ NODE_VERSION="${node_version}"
 OPENCLAW_VERSION="${openclaw_version}"
 FLEETMIND_VERSION="${fleetmind_version}"
 
+OPENCLAW_USER="openclaw"
+OPENCLAW_HOME="/home/openclaw"
+# Keep the existing FleetMind workspace contract. The runtime user's OpenClaw
+# state is linked into this workspace below so HOME can remain its real home.
 WORKSPACE_BASE="/opt/openclaw/workspace"
 WORKSPACE_DIR="$WORKSPACE_BASE/$AGENT_ID"
-ENV_FILE="/run/openclaw-$AGENT_ID.env"
+RUNTIME_PATH="/usr/local/bin:/usr/bin:/bin"
+ENV_FILE="$OPENCLAW_HOME/.config/fleetmind/agent.env"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 # Mirror to /dev/console so failures appear in `aws ec2 get-console-output`
@@ -38,7 +43,13 @@ echo "[bootstrap] Fleet: $FLEET_NAME | Agent: $AGENT_ID"
 echo "[bootstrap] STAGE 1: dnf update starting at $(date)"
 dnf update -y
 echo "[bootstrap] STAGE 2: dnf install starting at $(date)"
-dnf install -y git tar unzip jq
+dnf install -y git tar unzip jq docker
+
+# Docker is part of the practical OpenClaw agent baseline: agents can use
+# Docker-backed tools without requiring a privileged service or a sudo grant.
+echo "[bootstrap] STAGE 2a: Docker install/start at $(date)"
+systemctl enable --now docker
+getent group docker >/dev/null || groupadd --system docker
 
 # ── Ensure amazon-ssm-agent is installed + running ────────────────────────────
 # Defensive: the standard AL2023 AMI includes ssm-agent, but the minimal AMI
@@ -59,6 +70,23 @@ dnf install -y nodejs
 
 NODE_BIN="/usr/bin"
 echo "[bootstrap] Node $(node --version) installed at $NODE_BIN"
+echo "[bootstrap] npm $(npm --version) available on $RUNTIME_PATH"
+
+# ── OpenClaw runtime account ─────────────────────────────────────────────────
+# Root owns only machine bootstrap. Gateway and subscriber are user units under
+# this account, which has a persistent systemd user manager via lingering.
+echo "[bootstrap] STAGE 4b: OpenClaw runtime account at $(date)"
+if ! id -u "$OPENCLAW_USER" >/dev/null 2>&1; then
+  useradd --create-home --home-dir "$OPENCLAW_HOME" --shell /bin/bash --groups docker "$OPENCLAW_USER"
+else
+  usermod --home "$OPENCLAW_HOME" --move-home --shell /bin/bash --append --groups docker "$OPENCLAW_USER"
+fi
+# Holds the fetched secret environment file and user-owned operational profile.
+# Keep the directory private even when it already exists from a prior bootstrap.
+install -d -o "$OPENCLAW_USER" -g "$OPENCLAW_USER" -m 0700 "$OPENCLAW_HOME/.config/fleetmind"
+chmod 0700 "$OPENCLAW_HOME/.config/fleetmind"
+install -d -o "$OPENCLAW_USER" -g "$OPENCLAW_USER" -m 0755 "$WORKSPACE_DIR"
+loginctl enable-linger "$OPENCLAW_USER"
 
 # ── AWS CLI v2 ────────────────────────────────────────────────────────────────
 echo "[bootstrap] STAGE 5: aws cli install/check starting at $(date)"
@@ -99,13 +127,16 @@ fleetmind --version
 # shared substrates (task-ledger DDB, context-store DDB, narratives S3).
 echo "[bootstrap] STAGE 7: workspace mkdir starting at $(date)"
 mkdir -p "$WORKSPACE_DIR"
-chown -R ec2-user:ec2-user "$WORKSPACE_DIR"
+chown -R "$OPENCLAW_USER:$OPENCLAW_USER" "$WORKSPACE_DIR"
+# FleetMind deploys .openclaw under the workspace. Preserve that deployment
+# contract while making it the runtime user's normal OpenClaw state directory.
+ln -sfn "$WORKSPACE_DIR/.openclaw" "$OPENCLAW_HOME/.openclaw"
 echo "[bootstrap] Workspace dir: $WORKSPACE_DIR (root volume)"
 
 echo "[bootstrap] STAGE 7a: @openclaw/slack plugin install starting at $(date)"
-# Must run after workspace dir exists and is owned by ec2-user.
-# Uses HOME=$WORKSPACE_DIR so plugin lands where the service can find it.
-sudo -u ec2-user HOME="$WORKSPACE_DIR" openclaw plugins install @openclaw/slack --force
+# Must run after the runtime account and workspace exist. HOME stays the
+# account's real home; ~/.openclaw points at the deployed workspace state.
+runuser -u "$OPENCLAW_USER" -- env HOME="$OPENCLAW_HOME" PATH="$RUNTIME_PATH" openclaw plugins install @openclaw/slack --force
 # Remove the stub openclaw.json created by plugins install — it only contains
 # the plugin entry and lacks gateway.mode, causing OpenClaw to refuse startup.
 # The real openclaw.json is delivered by 'fleetmind push fleet'.
@@ -404,37 +435,40 @@ GHTOKEN_EOF
 chmod 755 /usr/local/bin/gh-app-token
 echo "[bootstrap] gh-app-token installed at /usr/local/bin/gh-app-token"
 
-# ── systemd service for this agent ────────────────────────────────────────────
-echo "[bootstrap] STAGE 9: systemd unit write starting at $(date)"
-echo "[bootstrap] Creating systemd service for agent: $AGENT_ID"
+# ── systemd user services for this agent ─────────────────────────────────────
+# These units deliberately live in the openclaw user's manager. Root's role
+# ends at creating the account, prerequisites, directories, and lingering.
+echo "[bootstrap] STAGE 9: systemd user unit write starting at $(date)"
+echo "[bootstrap] Creating OpenClaw user services for agent: $AGENT_ID"
 
-cat > "/etc/systemd/system/openclaw-$AGENT_ID.service" << EOF
+USER_SYSTEMD_DIR="$OPENCLAW_HOME/.config/systemd/user"
+install -d -o "$OPENCLAW_USER" -g "$OPENCLAW_USER" -m 0755 "$USER_SYSTEMD_DIR"
+
+cat > "$USER_SYSTEMD_DIR/openclaw-$AGENT_ID.service" << EOF
 [Unit]
 Description=OpenClaw Agent ($AGENT_ID) — $FLEET_NAME fleet
-After=network-online.target
-Wants=network-online.target
 # Workspace config is deployed by 'fleetmind push fleet' (after bootstrap completes).
 # systemd silently skips start until that file exists, avoiding a restart-loop on
 # first boot before the operator's first push. Once pull-self ships the workspace,
-# 'systemctl restart' (which pull-self --restart triggers) starts the service fresh.
+# 'systemctl --user restart' starts the service fresh.
 ConditionPathExists=$WORKSPACE_DIR/.openclaw/openclaw.json
 
 [Service]
 Type=simple
-User=ec2-user
+WorkingDirectory=$WORKSPACE_DIR
 Restart=always
 RestartSec=10
 StartLimitBurst=5
 StartLimitIntervalSec=60
 
-Environment=HOME=$WORKSPACE_DIR
-Environment=PATH=$NODE_BIN:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=$OPENCLAW_HOME
+Environment=PATH=$RUNTIME_PATH
 
 # Fetch fresh secrets before each start (idempotent)
-# '+' prefix runs ExecStartPre as root so it can write to /run (root:root 755)
-ExecStartPre=+/usr/local/bin/fetch-agent-secrets $FLEET_NAME $AGENT_ID $ENV_FILE $AWS_REGION
+# The user-owned env file is shared with the NATS subscriber below.
+ExecStartPre=/usr/local/bin/fetch-agent-secrets $FLEET_NAME $AGENT_ID $ENV_FILE $AWS_REGION
 
-# '-' prefix means: don't fail if file missing at unit-load time (it's created by ExecStartPre)
+# '-' means: don't fail if file is missing at unit-load time (it is created by ExecStartPre).
 EnvironmentFile=-$ENV_FILE
 
 ExecStart=$OPENCLAW_BIN gateway
@@ -444,16 +478,8 @@ StandardError=journal
 SyslogIdentifier=openclaw-$AGENT_ID
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 EOF
-
-echo "[bootstrap] STAGE 10: systemctl daemon-reload at $(date)"
-systemctl daemon-reload
-echo "[bootstrap] STAGE 11: systemctl enable --now at $(date)"
-systemctl enable --now "openclaw-$AGENT_ID" || true
-echo "[bootstrap] STAGE 12: systemd unit installed and enabled"
-echo "[bootstrap]   ConditionPathExists gates start until 'fleetmind push fleet' ships the workspace."
-echo "[bootstrap]   On first push, 'fleetmind push fleet --restart' triggers the initial start."
 
 # ── STAGE 12b: gh CLI install (non-critical, after core bootstrap) ───────────
 # Moved after Node.js/openclaw/fleetmind so a network timeout here never
@@ -493,7 +519,7 @@ NATS_MODE="%{ if is_orchestrator }pm%{ else }worker%{ endif }"
 NATS_SVC_NAME="fleetmind-nats-$AGENT_ID"
 
 # Path unit: fires once when fleet.yaml appears
-cat > "/etc/systemd/system/$${NATS_SVC_NAME}.path" << EOF
+cat > "$USER_SYSTEMD_DIR/$${NATS_SVC_NAME}.path" << EOF
 [Unit]
 Description=Watch for fleet.yaml — start NATS subscriber for $AGENT_ID once config is deployed
 StartLimitIntervalSec=0
@@ -503,33 +529,32 @@ PathExists=$NATS_FLEET_YAML
 Unit=$${NATS_SVC_NAME}.service
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 EOF
 
 # Service unit: long-running fleetmind nats subscribe
-cat > "/etc/systemd/system/$${NATS_SVC_NAME}.service" << EOF
+cat > "$USER_SYSTEMD_DIR/$${NATS_SVC_NAME}.service" << EOF
 [Unit]
 Description=FleetMind NATS subscriber ($AGENT_ID, mode=$NATS_MODE) — $FLEET_NAME fleet
-After=openclaw-$AGENT_ID.service network-online.target
-Wants=network-online.target
+After=openclaw-$AGENT_ID.service
 StartLimitBurst=0
 StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-User=ec2-user
 WorkingDirectory=$WORKSPACE_DIR
 Restart=on-failure
 RestartSec=30
 LogLevelMax=debug
 
-Environment=HOME=$WORKSPACE_DIR
-Environment=PATH=$NODE_BIN:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=$OPENCLAW_HOME
+Environment=PATH=$RUNTIME_PATH
 Environment=FLEET_YAML=$NATS_FLEET_YAML
 Environment=OPENCLAW_GATEWAY_PORT=${gateway_port}
 Environment=NATS_HEALTH_URL=http://nats.$FLEET_NAME.internal:8222/healthz
-# Loads Slack + model-provider keys + gateway token so env var refs resolve.
-# GATEWAY_TOKEN from this file is used by the PM subscriber as the webhook secret.
+# Same user-owned credential file as the gateway. It carries Slack and
+# model-provider keys plus GATEWAY_TOKEN for the PM webhook callback.
+ExecStartPre=/usr/local/bin/fetch-agent-secrets $FLEET_NAME $AGENT_ID $ENV_FILE $AWS_REGION
 EnvironmentFile=-$ENV_FILE
 
 # Wait for NATS to come online before starting the subscriber. The \$ escapes
@@ -552,17 +577,62 @@ StandardError=journal
 SyslogIdentifier=$${NATS_SVC_NAME}
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 EOF
 
-systemctl daemon-reload
-# Enable the path unit — it activates the service unit automatically
-# when fleet.yaml lands on the instance.
-systemctl enable "$${NATS_SVC_NAME}.path"
-# Start the path unit immediately so it begins watching for fleet.yaml on this boot.
-# Without this, the path unit won't be active and won't trigger the service when
-# fleet.yaml is deployed by 'fleetmind push fleet'.
-systemctl start "$${NATS_SVC_NAME}.path"
+chown "$OPENCLAW_USER:$OPENCLAW_USER" "$USER_SYSTEMD_DIR/openclaw-$AGENT_ID.service" "$USER_SYSTEMD_DIR/$${NATS_SVC_NAME}.path" "$USER_SYSTEMD_DIR/$${NATS_SVC_NAME}.service"
+
+# With lingering enabled, this user manager survives logout and starts at boot.
+# Use its bus directly only during root bootstrap; all later service management
+# is performed by openclaw itself with `systemctl --user`.
+OPENCLAW_UID=$(id -u "$OPENCLAW_USER")
+OPENCLAW_RUNTIME_DIR="/run/user/$OPENCLAW_UID"
+
+# Source user-service controls from the runtime account's normal Bash profile.
+# These target the real per-agent units and journald; no root-owned gateway unit,
+# /var/log path, or sudo is involved.
+OPENCLAW_ALIAS_PROFILE="$OPENCLAW_HOME/.config/fleetmind/openclaw-aliases.sh"
+cat > "$OPENCLAW_ALIAS_PROFILE" << EOF
+# FleetMind OpenClaw controls for agent $AGENT_ID. Generated by bootstrap.
+# Keep service commands on this account's user manager with the runtime HOME/PATH.
+alias openclaw-status='env HOME=$OPENCLAW_HOME PATH=$RUNTIME_PATH XDG_RUNTIME_DIR=$OPENCLAW_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS=unix:path=$OPENCLAW_RUNTIME_DIR/bus systemctl --user status openclaw-$AGENT_ID.service'
+alias openclaw-start='env HOME=$OPENCLAW_HOME PATH=$RUNTIME_PATH XDG_RUNTIME_DIR=$OPENCLAW_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS=unix:path=$OPENCLAW_RUNTIME_DIR/bus systemctl --user start openclaw-$AGENT_ID.service'
+alias openclaw-stop='env HOME=$OPENCLAW_HOME PATH=$RUNTIME_PATH XDG_RUNTIME_DIR=$OPENCLAW_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS=unix:path=$OPENCLAW_RUNTIME_DIR/bus systemctl --user stop openclaw-$AGENT_ID.service'
+alias openclaw-restart='env HOME=$OPENCLAW_HOME PATH=$RUNTIME_PATH XDG_RUNTIME_DIR=$OPENCLAW_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS=unix:path=$OPENCLAW_RUNTIME_DIR/bus systemctl --user restart openclaw-$AGENT_ID.service'
+alias openclaw-logs='journalctl --user -u openclaw-$AGENT_ID.service -f'
+alias openclaw-nats-status='env HOME=$OPENCLAW_HOME PATH=$RUNTIME_PATH XDG_RUNTIME_DIR=$OPENCLAW_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS=unix:path=$OPENCLAW_RUNTIME_DIR/bus systemctl --user status $${NATS_SVC_NAME}.service'
+alias openclaw-nats-restart='env HOME=$OPENCLAW_HOME PATH=$RUNTIME_PATH XDG_RUNTIME_DIR=$OPENCLAW_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS=unix:path=$OPENCLAW_RUNTIME_DIR/bus systemctl --user restart $${NATS_SVC_NAME}.service'
+alias openclaw-nats-logs='journalctl --user -u $${NATS_SVC_NAME}.service -f'
+EOF
+chown "$OPENCLAW_USER:$OPENCLAW_USER" "$OPENCLAW_ALIAS_PROFILE"
+chmod 0600 "$OPENCLAW_ALIAS_PROFILE"
+
+OPENCLAW_BASHRC="$OPENCLAW_HOME/.bashrc"
+touch "$OPENCLAW_BASHRC"
+if ! grep -qxF 'source "$HOME/.config/fleetmind/openclaw-aliases.sh"' "$OPENCLAW_BASHRC"; then
+  cat >> "$OPENCLAW_BASHRC" << 'BASHRC_EOF'
+# FleetMind OpenClaw user-service aliases.
+source "$HOME/.config/fleetmind/openclaw-aliases.sh"
+BASHRC_EOF
+fi
+chown "$OPENCLAW_USER:$OPENCLAW_USER" "$OPENCLAW_BASHRC"
+chmod 0600 "$OPENCLAW_BASHRC"
+
+runuser -u "$OPENCLAW_USER" -- env \
+  XDG_RUNTIME_DIR="$OPENCLAW_RUNTIME_DIR" \
+  DBUS_SESSION_BUS_ADDRESS="unix:path=$OPENCLAW_RUNTIME_DIR/bus" \
+  systemctl --user daemon-reload
+runuser -u "$OPENCLAW_USER" -- env \
+  XDG_RUNTIME_DIR="$OPENCLAW_RUNTIME_DIR" \
+  DBUS_SESSION_BUS_ADDRESS="unix:path=$OPENCLAW_RUNTIME_DIR/bus" \
+  systemctl --user enable --now "openclaw-$AGENT_ID.service" || true
+runuser -u "$OPENCLAW_USER" -- env \
+  XDG_RUNTIME_DIR="$OPENCLAW_RUNTIME_DIR" \
+  DBUS_SESSION_BUS_ADDRESS="unix:path=$OPENCLAW_RUNTIME_DIR/bus" \
+  systemctl --user enable --now "$${NATS_SVC_NAME}.path"
+echo "[bootstrap] OpenClaw user services installed and enabled"
+echo "[bootstrap]   Gateway start is gated until 'fleetmind push fleet' ships the workspace."
+echo "[bootstrap]   On first push, openclaw can restart both user services without sudo."
 echo "[bootstrap] NATS path unit enabled and started: $${NATS_SVC_NAME}.path"
 echo "[bootstrap]   Will start $${NATS_SVC_NAME}.service when $NATS_FLEET_YAML appears"
 
