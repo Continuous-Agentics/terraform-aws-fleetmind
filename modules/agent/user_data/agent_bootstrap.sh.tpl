@@ -24,9 +24,11 @@ OPENCLAW_VERSION="${openclaw_version}"
 FLEETMIND_VERSION="${fleetmind_version}"
 
 OPENCLAW_USER="openclaw"
+# OS account home: holds the user manager units and FleetMind credential file.
 OPENCLAW_HOME="/home/openclaw"
-# Keep the existing FleetMind workspace contract. The runtime user's OpenClaw
-# state is linked into this workspace below so HOME can remain its real home.
+# Application-state home: FleetMind deploys OpenClaw configuration here.
+# Do not move this contract to the OS account home without a coordinated
+# FleetMind CLI/deploy migration.
 WORKSPACE_BASE="/opt/openclaw/workspace"
 WORKSPACE_DIR="$WORKSPACE_BASE/$AGENT_ID"
 RUNTIME_PATH="/usr/local/bin:/usr/bin:/bin"
@@ -128,15 +130,13 @@ fleetmind --version
 echo "[bootstrap] STAGE 7: workspace mkdir starting at $(date)"
 mkdir -p "$WORKSPACE_DIR"
 chown -R "$OPENCLAW_USER:$OPENCLAW_USER" "$WORKSPACE_DIR"
-# FleetMind deploys .openclaw under the workspace. Preserve that deployment
-# contract while making it the runtime user's normal OpenClaw state directory.
-ln -sfn "$WORKSPACE_DIR/.openclaw" "$OPENCLAW_HOME/.openclaw"
 echo "[bootstrap] Workspace dir: $WORKSPACE_DIR (root volume)"
 
 echo "[bootstrap] STAGE 7a: @openclaw/slack plugin install starting at $(date)"
-# Must run after the runtime account and workspace exist. HOME stays the
-# account's real home; ~/.openclaw points at the deployed workspace state.
-runuser -u "$OPENCLAW_USER" -- env HOME="$OPENCLAW_HOME" PATH="$RUNTIME_PATH" openclaw plugins install @openclaw/slack --force
+# Must run after the runtime account and workspace exist. FleetMind's current
+# deployment contract places OpenClaw application state at $WORKSPACE_DIR, so
+# use it as HOME rather than creating a ~/.openclaw symlink under the OS home.
+runuser -u "$OPENCLAW_USER" -- env HOME="$WORKSPACE_DIR" PATH="$RUNTIME_PATH" openclaw plugins install @openclaw/slack --force
 # Remove the stub openclaw.json created by plugins install — it only contains
 # the plugin entry and lacks gateway.mode, causing OpenClaw to refuse startup.
 # The real openclaw.json is delivered by 'fleetmind push fleet'.
@@ -461,7 +461,9 @@ RestartSec=10
 StartLimitBurst=5
 StartLimitIntervalSec=60
 
-Environment=HOME=$OPENCLAW_HOME
+# OpenClaw application state remains in FleetMind's deployed workspace. The
+# user unit and credential file themselves stay under the OS account home.
+Environment=HOME=$WORKSPACE_DIR
 Environment=PATH=$RUNTIME_PATH
 
 # Fetch fresh secrets before each start (idempotent)
@@ -547,7 +549,8 @@ Restart=on-failure
 RestartSec=30
 LogLevelMax=debug
 
-Environment=HOME=$OPENCLAW_HOME
+# Keep FleetMind/OpenClaw application state in the deployed workspace.
+Environment=HOME=$WORKSPACE_DIR
 Environment=PATH=$RUNTIME_PATH
 Environment=FLEET_YAML=$NATS_FLEET_YAML
 Environment=OPENCLAW_GATEWAY_PORT=${gateway_port}

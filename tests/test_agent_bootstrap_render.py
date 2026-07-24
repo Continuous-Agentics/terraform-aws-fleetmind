@@ -83,7 +83,8 @@ def main() -> int:
     rendered = render()
 
     # Runtime account, npm-capable PATH, and Docker access are all established
-    # before OpenClaw is installed or configured.
+    # before OpenClaw is installed or configured. The Unix account home is
+    # separate from FleetMind's deployed application-state home.
     for expected in (
         'OPENCLAW_USER="openclaw"',
         'OPENCLAW_HOME="/home/openclaw"',
@@ -97,7 +98,7 @@ def main() -> int:
         'chmod 0700 "$OPENCLAW_HOME/.config/fleetmind"',
         "echo \"[bootstrap] npm $(npm --version) available on $RUNTIME_PATH\"",
         "npm install -g \"$OPENCLAW_PKG\"",
-        "runuser -u \"$OPENCLAW_USER\" -- env HOME=\"$OPENCLAW_HOME\" PATH=\"$RUNTIME_PATH\" openclaw plugins install @openclaw/slack --force",
+        "runuser -u \"$OPENCLAW_USER\" -- env HOME=\"$WORKSPACE_DIR\" PATH=\"$RUNTIME_PATH\" openclaw plugins install @openclaw/slack --force",
     ):
         require(rendered, expected)
 
@@ -112,11 +113,12 @@ def main() -> int:
         'chown "$OPENCLAW_USER:$OPENCLAW_USER"',
     )
 
-    # Both are systemd *user* units with identical home, PATH, workspace, and
-    # credential file. Neither needs a User= directive or sudo to operate.
+    # Both are systemd *user* units with the FleetMind application-state HOME,
+    # PATH, workspace, and credential file. Neither needs a User= directive or
+    # sudo to operate.
     for unit in (gateway, nats):
         require(unit, "WorkingDirectory=$WORKSPACE_DIR")
-        require(unit, "Environment=HOME=$OPENCLAW_HOME")
+        require(unit, "Environment=HOME=$WORKSPACE_DIR")
         require(unit, "Environment=PATH=$RUNTIME_PATH")
         require(unit, "EnvironmentFile=-$ENV_FILE")
         if "User=" in unit:
@@ -154,6 +156,14 @@ def main() -> int:
     )
     if "sudo" in aliases or "/var/log/openclaw" in aliases or "openclaw-gateway" in aliases:
         raise AssertionError("OpenClaw aliases must use user units and journald without sudo")
+
+    # FleetMind deploys and owns application state in the workspace. A link in
+    # the OS account home can be dangling before that state exists, which makes
+    # OpenClaw's plugin installer fail with ENOTDIR.
+    if 'ln -sfn "$WORKSPACE_DIR/.openclaw" "$OPENCLAW_HOME/.openclaw"' in rendered:
+        raise AssertionError("Bootstrap must not create a potentially dangling ~/.openclaw symlink")
+    if 'HOME="$OPENCLAW_HOME" PATH="$RUNTIME_PATH" openclaw plugins install' in rendered:
+        raise AssertionError("Plugin install must use the workspace application-state HOME")
 
     print("agent bootstrap rendered-user-data assertions passed")
     return 0
