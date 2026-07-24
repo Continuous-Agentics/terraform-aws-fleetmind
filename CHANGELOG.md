@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Install FleetMind from public npm during agent bootstrap; remove the shared GitHub Packages PAT SSM read policy from agent roles.
 - Refresh README/docs for the v1 module baseline and link to the FleetMind compatibility matrix.
 
+### Docs
+- Cross-reference the FleetMind CLI's removal of `terraform workspace select`/`new` from `fleetmind onboard` (fleetmind#255) in the CLI workspaces → explicit backend keys migration guide, since new fleets onboarded with a post-#255 CLI land directly on an explicit `fleets/<fleet-name>/terraform.tfstate` key and never need this migration.
+
 ## [1.1.0] - 2026-07-09
 
 ### Added
