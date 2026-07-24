@@ -57,12 +57,7 @@ Then `terraform init -backend-config=backend.hcl`.
 
 ## Migrating from CLI workspaces to explicit backend keys
 
-> **New fleets:** the FleetMind CLI's `fleetmind onboard` no longer runs
-> `terraform workspace select`/`terraform workspace new` (fleetmind#255) —
-> fleets onboarded with that CLI version or newer default to an explicit
-> `fleets/<fleet-name>/terraform.tfstate` backend key from the start and
-> never need this migration. This section is only for fleets that were
-> already provisioned on a CLI workspace before that change.
+> **New fleets:** the FleetMind CLI's `fleetmind onboard` no longer runs `terraform workspace select`/`terraform workspace new` (fleetmind#255) — fleets onboarded with that CLI version or newer default to an explicit `fleets/<fleet-name>/terraform.tfstate` backend key from the start and never need this migration. This section is only for fleets that were already provisioned on a CLI workspace before that change.
 
 **Symptom:** You have one or more fleets on CLI workspaces (state under `env:/<workspace>/...` in the shared state bucket) and want to move to the recommended explicit-`key` pattern (see [README.md § Consumer setup](../README.md#consumer-setup)) without downtime or state loss.
 
