@@ -20,6 +20,10 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          # The wrapper does not forward stdin to `terraform console`; the
+          # rendered-bootstrap test supplies a templatefile expression on stdin.
+          terraform_wrapper: false
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive

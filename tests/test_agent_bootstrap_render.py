@@ -8,6 +8,7 @@ Terraform escaping and template conditionals have broken bootstrap units before.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -48,10 +49,16 @@ def render() -> str:
         raise AssertionError(f"terraform console failed:\n{result.stderr}\n{result.stdout}")
 
     # Terraform console prints multiline strings as a heredoc. Strip only that
-    # display wrapper, then syntax-check the exact rendered shell program.
-    if not result.stdout.startswith("<<EOT\n") or not result.stdout.endswith("\nEOT\n"):
+    # display wrapper (whose marker is Terraform-version dependent), then
+    # syntax-check the exact rendered shell program.
+    heredoc = re.fullmatch(
+        r"<<(?P<marker>[A-Za-z_][A-Za-z0-9_]*)\n(?P<body>.*)\n(?P=marker)\n",
+        result.stdout,
+        flags=re.DOTALL,
+    )
+    if heredoc is None:
         raise AssertionError(f"Unexpected terraform console string format:\n{result.stdout}")
-    rendered = result.stdout.removeprefix("<<EOT\n").removesuffix("\nEOT\n")
+    rendered = heredoc.group("body")
     shellcheck = subprocess.run(
         ["bash", "-n"], input=rendered, text=True, capture_output=True, check=False
     )
@@ -86,6 +93,8 @@ def main() -> int:
         "useradd --create-home --home-dir \"$OPENCLAW_HOME\" --shell /bin/bash --groups docker \"$OPENCLAW_USER\"",
         "usermod --home \"$OPENCLAW_HOME\" --move-home --shell /bin/bash --append --groups docker \"$OPENCLAW_USER\"",
         "loginctl enable-linger \"$OPENCLAW_USER\"",
+        'install -d -o "$OPENCLAW_USER" -g "$OPENCLAW_USER" -m 0700 "$OPENCLAW_HOME/.config/fleetmind"',
+        'chmod 0700 "$OPENCLAW_HOME/.config/fleetmind"',
         "echo \"[bootstrap] npm $(npm --version) available on $RUNTIME_PATH\"",
         "npm install -g \"$OPENCLAW_PKG\"",
         "runuser -u \"$OPENCLAW_USER\" -- env HOME=\"$OPENCLAW_HOME\" PATH=\"$RUNTIME_PATH\" openclaw plugins install @openclaw/slack --force",
@@ -127,8 +136,24 @@ def main() -> int:
         "systemctl --user daemon-reload",
         'systemctl --user enable --now "openclaw-$AGENT_ID.service"',
         'systemctl --user enable --now "${NATS_SVC_NAME}.path"',
+        'OPENCLAW_ALIAS_PROFILE="$OPENCLAW_HOME/.config/fleetmind/openclaw-aliases.sh"',
+        "source \"$HOME/.config/fleetmind/openclaw-aliases.sh\"",
+        "alias openclaw-status='env HOME=$OPENCLAW_HOME PATH=$RUNTIME_PATH",
+        "systemctl --user status openclaw-$AGENT_ID.service'",
+        "alias openclaw-logs='journalctl --user -u openclaw-$AGENT_ID.service -f'",
+        "alias openclaw-nats-status='env HOME=$OPENCLAW_HOME PATH=$RUNTIME_PATH",
+        "systemctl --user status ${NATS_SVC_NAME}.service'",
+        "alias openclaw-nats-logs='journalctl --user -u ${NATS_SVC_NAME}.service -f'",
     ):
         require(rendered, expected)
+
+    aliases = section(
+        rendered,
+        'cat > "$OPENCLAW_ALIAS_PROFILE" << EOF',
+        'chown "$OPENCLAW_USER:$OPENCLAW_USER" "$OPENCLAW_ALIAS_PROFILE"',
+    )
+    if "sudo" in aliases or "/var/log/openclaw" in aliases or "openclaw-gateway" in aliases:
+        raise AssertionError("OpenClaw aliases must use user units and journald without sudo")
 
     print("agent bootstrap rendered-user-data assertions passed")
     return 0
