@@ -139,13 +139,15 @@ def main() -> int:
         'systemctl --user enable --now "openclaw-$AGENT_ID.service"',
         'systemctl --user enable --now "${NATS_SVC_NAME}.path"',
         'OPENCLAW_ALIAS_PROFILE="$OPENCLAW_HOME/.config/fleetmind/openclaw-aliases.sh"',
+        'OPENCLAW_BASH_PROFILE="$OPENCLAW_HOME/.bash_profile"',
         "source \"$HOME/.config/fleetmind/openclaw-aliases.sh\"",
-        "alias openclaw-status='env HOME=$OPENCLAW_HOME PATH=$RUNTIME_PATH",
-        "systemctl --user status openclaw-$AGENT_ID.service'",
-        "alias openclaw-logs='journalctl --user -u openclaw-$AGENT_ID.service -f'",
-        "alias openclaw-nats-status='env HOME=$OPENCLAW_HOME PATH=$RUNTIME_PATH",
-        "systemctl --user status ${NATS_SVC_NAME}.service'",
-        "alias openclaw-nats-logs='journalctl --user -u ${NATS_SVC_NAME}.service -f'",
+        "alias ocalias='alias | grep -E \"^alias (oc|openclaw-)\"'",
+        "alias ocstatus='fleetmind_userctl status openclaw-$AGENT_ID.service --no-pager'",
+        "alias oclog='fleetmind_userjournal -u openclaw-$AGENT_ID.service -n 100 --no-pager'",
+        "alias octail='fleetmind_userjournal -u openclaw-$AGENT_ID.service -f'",
+        "alias ocnatsstatus='fleetmind_userctl status ${NATS_SVC_NAME}.service --no-pager'",
+        "alias ocnatslog='fleetmind_userjournal -u ${NATS_SVC_NAME}.service -n 100 --no-pager'",
+        "alias ocnatstail='fleetmind_userjournal -u ${NATS_SVC_NAME}.service -f'",
     ):
         require(rendered, expected)
 
@@ -154,8 +156,20 @@ def main() -> int:
         'cat > "$OPENCLAW_ALIAS_PROFILE" << EOF',
         'chown "$OPENCLAW_USER:$OPENCLAW_USER" "$OPENCLAW_ALIAS_PROFILE"',
     )
-    if "sudo" in aliases or "/var/log/openclaw" in aliases or "openclaw-gateway" in aliases:
-        raise AssertionError("OpenClaw aliases must use user units and journald without sudo")
+    for expected in (
+        "fleetmind_userctl() {",
+        "fleetmind_userjournal() {",
+        'DBUS_SESSION_BUS_ADDRESS=unix:path=$OPENCLAW_RUNTIME_DIR/bus systemctl --user "\\$@"',
+        "alias openclaw-status='ocstatus'",
+        "alias openclaw-logs='octail'",
+    ):
+        require(aliases, expected)
+    if "sudo -H -u" in aliases or "/var/log/openclaw" in aliases or "openclaw-gateway" in aliases:
+        raise AssertionError("OpenClaw aliases must use FleetMind user units and journald")
+
+    alias_source = 'source "$HOME/.config/fleetmind/openclaw-aliases.sh"'
+    if sum(line == alias_source for line in rendered.splitlines()) != 2:
+        raise AssertionError("FleetMind aliases must load in both Bash and login-shell profiles")
 
     # FleetMind deploys and owns application state in the workspace. A link in
     # the OS account home can be dangling before that state exists, which makes

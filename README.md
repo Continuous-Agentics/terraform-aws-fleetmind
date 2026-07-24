@@ -86,6 +86,10 @@ Each agent host uses a practical, user-owned OpenClaw runtime rather than a lock
 
 The established workspace path remains `/opt/openclaw/workspace/<agent>` so existing rendered fleets continue to deploy to the same location. It is also the application-state HOME for the Slack plugin install, OpenClaw gateway, and NATS subscriber: its `.openclaw` directory is created and deployed there. Bootstrap does not link `/home/openclaw/.openclaw` to that path, because a link created before workspace state exists is dangling and prevents plugin installation. Moving application state into the OS account home requires a deliberate FleetMind CLI/deploy-contract migration.
 
+### Operator shell
+
+For post-onboarding gateway or subscriber operations, enter the FleetMind runtime account with `sudo -iu openclaw`. Its login shell loads only the module-generated FleetMind profile—no local operator configuration or secrets—and provides `ocalias` to list available shortcuts. Use `ocstatus`, `oclog`, or `octail` for the gateway, and `ocnatsstatus`, `ocnatslog`, or `ocnatstail` for the subscriber. The corresponding `ocstart`, `ocstop`, `ocrestart`, and `ocnatsrestart` shortcuts manage the user services without copying a raw D-Bus or runtime-directory command into onboarding guidance.
+
 > **Companion work required before using `fleetmind push ... --restart` with this module baseline:** this module intentionally does not modify the FleetMind CLI or template. A FleetMind CLI change must (1) make its AWS SSM pull-self command run `fleetmind` as `openclaw` with HOME, PATH, `XDG_RUNTIME_DIR`, and the user D-Bus address set, and (2) replace the Linux service manager's `sudo systemctl` calls with `systemctl --user` restarts and reset-failed calls for both `openclaw-<agent>` and `fleetmind-nats-<agent>`. The FleetMind template needs corresponding operating and troubleshooting documentation updates: refer to the `openclaw` account and `systemctl --user`, remove the `ec2-user` sudoers workaround, and preserve its existing `/opt/openclaw/workspace` setting. No template schema or workspace-path change is needed.
 
 ## Examples
