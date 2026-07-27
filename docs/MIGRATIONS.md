@@ -1,12 +1,8 @@
 # Migrations
 
-Per-version notes on what to do when bumping `?ref=` in your `main.tf`. Each entry covers:
+Per-version notes for bumping `?ref=` in your `main.tf`: breaking changes (state mv or recreate), new optional variables, and behavioral changes that could surprise `terraform plan`.
 
-- **Breaking changes** — variables/outputs removed or renamed, resource addresses changed (state mv required, or apply recreates).
-- **New optional variables** — adopt at your own pace.
-- **Behavioral changes** — logic differences that don't change the API but may surprise `terraform plan`.
-
-If `terraform plan` after a version bump shows unexpected destroy+create you don't want, *stop and read the matching entry below* before applying.
+If a version bump shows unexpected destroy+create, stop and read the matching entry below before applying.
 
 ---
 

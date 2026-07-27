@@ -4,9 +4,7 @@ Terraform module for [FleetMind](https://github.com/Continuous-Agentics/fleetmin
 
 Provisions per-agent EC2 instances, a DynamoDB ContextStore, optional task-ledger delegation primitives (DynamoDB + S3 + IAM), per-agent IAM roles, VPC + endpoints, and security groups.
 
-## Status
-
-FleetMind's v1 AWS module baseline. Operators normally consume this module through [`fleetmind-template`](https://github.com/Continuous-Agentics/fleetmind-template) — check the FleetMind [compatibility matrix](https://github.com/Continuous-Agentics/fleetmind/blob/main/docs/COMPATIBILITY.md) before upgrading a fleet.
+Consumed through [`fleetmind-template`](https://github.com/Continuous-Agentics/fleetmind-template). Check the [compatibility matrix](https://github.com/Continuous-Agentics/fleetmind/blob/main/docs/COMPATIBILITY.md) before bumping `?ref=`.
 
 ## Layout
 
@@ -57,13 +55,13 @@ module "fleetmind" {
 }
 ```
 
-**Use an explicit backend `key` per fleet** (e.g. `fleets/<fleet-name>/terraform.tfstate`), either as a separate root module directory per fleet or a single root driven per-fleet via `terraform init -backend-config="key=..." -reconfigure`. Explicit keys make state discoverable in S3/CI/IAM and avoid depending on the operator's currently-selected CLI workspace.
+**Use an explicit backend `key` per fleet** (e.g. `fleets/<fleet-name>/terraform.tfstate`), either as a separate root module directory per fleet or one root driven per-fleet via `terraform init -backend-config="key=..." -reconfigure`. This keeps state discoverable in S3/CI/IAM instead of depending on the CLI's currently-selected workspace.
 
-CLI workspaces (`terraform workspace new <fleet>`) are supported only for ephemeral/dev fleets — don't use them for anything kept around or run in CI, since it's easy to apply against the wrong fleet's state. To migrate an existing workspace-based fleet to an explicit key, see [`docs/MODULE-TROUBLESHOOTING.md`](docs/MODULE-TROUBLESHOOTING.md#migrating-from-cli-workspaces-to-explicit-backend-keys).
+CLI workspaces (`terraform workspace new <fleet>`) are for ephemeral/dev fleets only — don't use them for anything kept around or run in CI. To migrate a workspace-based fleet to an explicit key, see [`docs/MODULE-TROUBLESHOOTING.md`](docs/MODULE-TROUBLESHOOTING.md#migrating-from-cli-workspaces-to-explicit-backend-keys).
 
 ## ContextStore backend
 
-`var.context_store_backend` (default `"dynamodb"`) selects the cross-agent shared key-value store. Only `"dynamodb"` is supported today — the agent runtime (`src/runtime/context.ts`) only speaks DynamoDB. The variable exists as a seam for future backends without an interface break.
+`var.context_store_backend` (default `"dynamodb"`) selects the cross-agent shared key-value store. Only `"dynamodb"` is supported — the agent runtime (`src/runtime/context.ts`) only speaks DynamoDB.
 
 ## What this module manages
 
@@ -71,17 +69,17 @@ CLI workspaces (`terraform workspace new <fleet>`) are supported only for epheme
 - Fleet security group
 - Per-agent EC2, IAM roles, and Secrets Manager placeholders (`modules/agent/`, one call per agent). Model-provider API keys live one secret **per (agent, provider)** at `<fleet_name>/agents/<agent>/providers/<provider>`; Slack + hooks secrets stay at `<fleet_name>/agents/<agent>/{slack,hooks}`.
 - DynamoDB ContextStore table (`context_store_backend = "dynamodb"`)
-- *Optional* task-ledger submodule (`delegation_enabled = true`): DDB tasks table, S3 narratives bucket, PM/worker IAM policies. Terminal-state wake-ups are delivered over NATS push, not EventBridge/SSM (that path was removed).
+- *Optional* task-ledger submodule (`delegation_enabled = true`): DDB tasks table, S3 narratives bucket, PM/worker IAM policies. Terminal-state wake-ups are delivered over NATS push.
 
 ## Agent runtime baseline
 
-Each host runs a user-owned OpenClaw runtime, not a locked-down system account. Bootstrap installs Node/npm and Docker, then idempotently creates/reconciles the `openclaw` account (`/home/openclaw`, Bash, Docker-group access). The gateway and FleetMind NATS subscriber run as `systemd --user` services under that account; lingering keeps the user manager available across logout/boot. Normal operations don't require sudo.
+Each host runs a user-owned OpenClaw runtime. Bootstrap installs Node/npm and Docker, then idempotently creates/reconciles the `openclaw` account (`/home/openclaw`, Bash, Docker-group access). Gateway and NATS subscriber run as `systemd --user` services under that account (lingering keeps the user manager alive across boot). Normal operations don't need sudo.
 
-The workspace path stays `/opt/openclaw/workspace/<agent>` for compatibility with existing rendered fleets, and is the HOME for the Slack plugin, gateway, and NATS subscriber (`.openclaw` lives there, not under `/home/openclaw`, to avoid a dangling symlink before deploy). Moving app state into the OS account home needs a deliberate FleetMind CLI/deploy-contract migration.
+Workspace path: `/opt/openclaw/workspace/<agent>` — also HOME for the Slack plugin, gateway, and NATS subscriber (`.openclaw` lives there, not under `/home/openclaw`).
 
-**Operator shell:** `sudo -iu openclaw`. Its profile loads only the module-generated FleetMind aliases (no local operator config/secrets) — run `ocalias` to list them. Gateway: `ocstatus`/`oclog`/`octail`/`ocstart`/`ocstop`/`ocrestart`. NATS subscriber: `ocnatsstatus`/`ocnatslog`/`ocnatstail`/`ocnatsrestart`.
+**Operator shell:** `sudo -iu openclaw`. Run `ocalias` to list generated aliases. Gateway: `ocstatus`/`oclog`/`octail`/`ocstart`/`ocstop`/`ocrestart`. NATS subscriber: `ocnatsstatus`/`ocnatslog`/`ocnatstail`/`ocnatsrestart`.
 
-> `fleetmind push ... --restart` needs a companion FleetMind CLI change (not in this module): run its SSM pull-self command as `openclaw` with HOME/PATH/`XDG_RUNTIME_DIR`/D-Bus set, and use `systemctl --user` instead of `sudo systemctl` for `openclaw-<agent>` and `fleetmind-nats-<agent>`. `fleetmind-template` docs also need updating to reference `openclaw` + `systemctl --user` and drop the `ec2-user` sudoers workaround (no schema/workspace-path change needed).
+> `fleetmind push ... --restart` needs a companion FleetMind CLI change (not in this module): run its SSM pull-self command as `openclaw` with HOME/PATH/`XDG_RUNTIME_DIR`/D-Bus set, using `systemctl --user` for `openclaw-<agent>` and `fleetmind-nats-<agent>`.
 
 ## Examples
 
@@ -103,7 +101,7 @@ Generated by [`terraform-docs`](https://terraform-docs.io/) from `.terraform-doc
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 5.0 |
 ## Modules
 
 | Name | Source | Version |
@@ -204,9 +202,9 @@ Selected outputs: per-agent maps (`instance_ids`, `private_ips`, `ssm_connect`, 
 
 ## Operational controls
 
-`agent_rollout_trigger` and `nats_rollout_trigger` balance safety vs. rollout speed: AMI and bootstrap (`user_data`) drift is ignored by default to avoid surprise `terraform apply` replacements. Change either trigger (e.g. `"2026-05-27a"` → `"2026-05-27b"`) and apply to force a rollout.
+`agent_rollout_trigger` / `nats_rollout_trigger`: AMI and bootstrap (`user_data`) drift is ignored by default to avoid surprise replacements. Change either trigger and apply to force a rollout.
 
-NATS transport hardening: `nats_auth_token` (optional token auth), `nats_tls_enabled`, `nats_tls_cert_pem`, `nats_tls_key_pem`, `nats_tls_ca_pem` (optional client cert verification). TLS cert/key PEMs are written on host during bootstrap and referenced in `nats-server.conf`.
+NATS hardening: `nats_auth_token` (token auth), `nats_tls_enabled` + `nats_tls_cert_pem`/`nats_tls_key_pem`/`nats_tls_ca_pem` (TLS, PEMs written on host during bootstrap into `nats-server.conf`).
 
 ## CI checks
 
@@ -241,7 +239,7 @@ nats_tls_key_pem  = file("${path.module}/certs/nats-server.key")
 nats_tls_ca_pem   = file("${path.module}/certs/ca.crt")  # optional client cert verification
 ```
 
-Agents pick up the token/TLS automatically. Verify the secret: `aws secretsmanager get-secret-value --secret-id <fleet_name>/agents/<agent_id>/gateway --region <region>`. Test connectivity: `nats -s nats://nats.<fleet_name>.internal:4222 --token <token> sub '>'` (from an agent instance).
+Agents pick up the token/TLS automatically. Verify: `aws secretsmanager get-secret-value --secret-id <fleet_name>/agents/<agent_id>/gateway --region <region>`. Test connectivity: `nats -s nats://nats.<fleet_name>.internal:4222 --token <token> sub '>'` (from an agent instance).
 
 ### Recovering or replacing the NATS instance
 

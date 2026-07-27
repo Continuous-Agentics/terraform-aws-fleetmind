@@ -1,17 +1,12 @@
 # Contributing to terraform-aws-fleetmind
 
-This repo is the AWS Terraform module used by FleetMind fleets — changes should be deliberate, reviewable, and explicit about operator impact.
+AWS Terraform module for FleetMind fleets. Changes should be deliberate and explicit about operator impact.
 
 ## Dev setup
 
 Prerequisites: Terraform `>= 1.5`, AWS provider matching the checked-in lockfile.
 
 ```bash
-# External contributors: fork first
-gh repo fork Continuous-Agentics/terraform-aws-fleetmind --clone
-cd terraform-aws-fleetmind
-
-# Maintainers: clone upstream directly
 git clone https://github.com/Continuous-Agentics/terraform-aws-fleetmind.git
 cd terraform-aws-fleetmind
 
@@ -20,7 +15,7 @@ terraform init -backend=false
 terraform validate
 ```
 
-Don't run `terraform apply` against a real AWS account unless the PR explicitly needs a live infrastructure smoke test.
+Don't `terraform apply` against a real AWS account unless the PR needs a live smoke test.
 
 ## Test conventions
 
@@ -31,10 +26,10 @@ Don't run `terraform apply` against a real AWS account unless the PR explicitly 
 
 ## Compatibility contract
 
-This module is consumed by `fleetmind-template` and driven by generated tfvars from `@continuous-agentics/fleetmind`. When changing inputs, outputs, IAM policy shape, bootstrap behavior, secret names, S3/DDB layout, or deployment semantics:
+Consumed by `fleetmind-template`, driven by generated tfvars from `@continuous-agentics/fleetmind`. When changing inputs, outputs, IAM shape, bootstrap behavior, secret names, S3/DDB layout, or deployment semantics:
 
 - Update `CHANGELOG.md` and README/docs.
-- Coordinate companion PRs in `fleetmind` and `fleetmind-template` when needed.
+- Coordinate companion PRs in `fleetmind`/`fleetmind-template` when needed.
 - Update the compatibility matrix in `Continuous-Agentics/fleetmind/docs/COMPATIBILITY.md` if the recommended baseline changes.
 
 ## Branch, commit & PR conventions
@@ -46,37 +41,17 @@ git checkout main && git pull --ff-only
 git checkout -b fix/your-change
 ```
 
-Keep PRs focused; squash WIP commits before opening. In the PR:
-
-- Title in Conventional Commit style, e.g. `fix: grant deploy-staging read to all agents`.
-- Describe what changed, why it matters to operators, and how it was verified.
-- Link issues with `Closes #123` / `Refs #123`.
-- Include migration notes for changes affecting existing deployed fleets.
-- CI green and at least one maintainer approval required to merge.
-
-## Where to file things
-
-| What | Where |
-|------|-------|
-| Module bugs | GitHub Issues, `bug` label |
-| Infra feature requests | GitHub Issues, `enhancement` label |
-| Documentation gaps | GitHub Issues/PRs, `documentation` label |
-| Security vulnerabilities | GitHub Security Advisories — not public issues |
-| CLI or template bugs | File in `fleetmind` or `fleetmind-template`, link back if module behavior is affected |
+Keep PRs focused; squash WIP commits. Title in Conventional Commit style; describe what changed and how it was verified; link issues (`Closes #123`); include migration notes for changes affecting deployed fleets. CI green + one approval to merge.
 
 ## Releases
 
-Maintainer-only. Releases are tagged and consumed by `fleetmind-template` via `?ref=vX.Y.Z`. Before tagging or merging release-affecting changes:
+Releases are tagged and consumed via `?ref=vX.Y.Z`. Before tagging:
 
 - [ ] `CHANGELOG.md` updated.
 - [ ] Terraform checks pass.
-- [ ] README/docs reflect new inputs, outputs, IAM, bootstrap, or migration behavior.
-- [ ] Template/module compatibility updated if this becomes the recommended baseline.
+- [ ] README/docs reflect new inputs/outputs/IAM/bootstrap/migration behavior.
+- [ ] Template/module compatibility matrix updated if this becomes the recommended baseline.
 
-## License / DCO
+## License
 
-No CLA required. Contributions are licensed under the project's [MIT license](./LICENSE) (inbound=outbound).
-
-## Conduct
-
-Be direct, respectful, and constructive. Maintainers may close or edit issues that are spammy, abusive, or unrelated to FleetMind.
+MIT. See [LICENSE](./LICENSE).

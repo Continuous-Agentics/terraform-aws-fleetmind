@@ -1,6 +1,6 @@
 # Module-level troubleshooting
 
-IaC-side failures: Terraform state, locking, module-version drift, BYO VPC misconfiguration, taint/replace recovery. For agent-runtime failures (Slack, push/pull-self, delegation), see the agent runtime's own docs.
+IaC-side failures: state, locking, module-version drift, BYO VPC misconfiguration, taint/replace. Agent-runtime failures (Slack, push/pull-self, delegation) are covered in the agent runtime's own docs.
 
 ---
 
@@ -37,19 +37,19 @@ Then `terraform init -backend-config=backend.hcl`.
 
 ### Concurrent fleet applies step on each other
 
-**Symptom:** Running `terraform apply` (or `fleetmind push fleet`) for two different fleets from the same directory causes wrong-workspace/wrong-tfvars mistakes.
+**Symptom:** Running `terraform apply`/`fleetmind push fleet` for two different fleets from the same directory causes wrong-workspace/wrong-tfvars mistakes.
 
-**Cause:** CLI workspaces hide the selected state namespace (`terraform workspace show`) while fleet variables come from a separate `-var-file`, making it easy to pair fleet A's vars with fleet B's selected workspace.
+**Cause:** CLI workspaces hide the selected state namespace while fleet variables come from a separate `-var-file`, so it's easy to pair fleet A's vars with fleet B's workspace.
 
-**Fix:** Use explicit backend `key` values per fleet (see below). This doesn't replace state locking, but makes the state target visible in config/CI logs instead of depending on the operator's selected workspace.
+**Fix:** Use explicit backend `key` values per fleet (see below) — makes the state target visible in config/CI logs instead of depending on the selected workspace.
 
 ---
 
 ## Migrating from CLI workspaces to explicit backend keys
 
-> Fleets onboarded with FleetMind CLI post-fleetmind#255 default to an explicit `fleets/<fleet-name>/terraform.tfstate` key already and don't need this migration. This section is for fleets provisioned on a CLI workspace before that change.
+> Fleets onboarded with FleetMind CLI post-fleetmind#255 already default to an explicit `fleets/<fleet-name>/terraform.tfstate` key and don't need this. This is for fleets provisioned on a CLI workspace before that change.
 
-A workspace's state is an S3 object at `env:/<workspace>/<key-path>` (or `env:/<workspace>/terraform.tfstate` if `key` was unset). Moving to an explicit key copies that object to a new key and points a fresh backend config at it — not destructive to infrastructure. Do this one fleet at a time.
+A workspace's state is an S3 object at `env:/<workspace>/<key-path>` (or `env:/<workspace>/terraform.tfstate` if `key` was unset). Moving to an explicit key copies that object to a new key and points a fresh backend config at it — not destructive to infrastructure. Do one fleet at a time.
 
 1. **Back up current state:**
 
@@ -65,7 +65,7 @@ A workspace's state is an S3 object at `env:/<workspace>/<key-path>` (or `env:/<
    terraform state pull > /tmp/<fleet>.tfstate
    ```
 
-3. **Switch to `default` before reconfiguring the backend** (staying on `<fleet>` keeps applying the `env:/<fleet>/` prefix even with an explicit `key` set):
+3. **Switch to `default` before reconfiguring the backend** (staying on `<fleet>` keeps the `env:/<fleet>/` prefix even with an explicit `key` set):
 
    ```bash
    terraform workspace select default
@@ -92,7 +92,7 @@ A workspace's state is an S3 object at `env:/<workspace>/<key-path>` (or `env:/<
    terraform state push /tmp/<fleet>.tfstate
    ```
 
-   `state push` refuses to overwrite a different lineage/serial without `-force` — don't force unless you've confirmed the destination key is empty or is genuinely this fleet's prior state.
+   `state push` refuses to overwrite a different lineage/serial without `-force` — don't force unless the destination key is empty or is genuinely this fleet's prior state.
 
 6. **Verify with a clean plan before touching real infrastructure:**
 
@@ -100,7 +100,7 @@ A workspace's state is an S3 object at `env:/<workspace>/<key-path>` (or `env:/<
    terraform plan -var-file=workspaces/<fleet>.tfvars -var-file=workspaces/<fleet>.derived.tfvars
    ```
 
-   Expect no changes. Any diff means the migrated state doesn't match reality — stop and compare against the step-1 backup.
+   Expect no changes; any diff means the migrated state doesn't match reality — compare against the step-1 backup.
 
 7. **Clean up** once the plan is clean and you've done one successful apply against the new key:
 
@@ -109,7 +109,7 @@ A workspace's state is an S3 object at `env:/<workspace>/<key-path>` (or `env:/<
    terraform workspace delete <fleet>
    ```
 
-   `terraform workspace delete` refuses to remove a workspace with tracked resources — a useful safety check.
+   (Refuses to remove a workspace with tracked resources — a safety check.)
 
 If the module version also changed resource addresses (e.g. a renamed submodule), run `terraform state mv` *after* the backend migration, as a separate step:
 
@@ -123,7 +123,7 @@ terraform state mv 'module.old_address' 'module.new_address'
 
 ### `terraform apply` ignores `fleet_name` / `agent_names`
 
-**Cause:** Forgot `.derived.tfvars` — these files are *not* auto-loaded and must be passed explicitly (the `derived.tfvars` suffix, not `auto.tfvars`, prevents cross-workspace contamination when multiple fleets share an account).
+**Cause:** Forgot `.derived.tfvars` — not auto-loaded, must be passed explicitly (the `derived.tfvars` suffix, not `auto.tfvars`, prevents cross-workspace contamination).
 
 **Fix:**
 
@@ -152,7 +152,7 @@ terraform apply \
   -var-file=workspaces/<fleet>.derived.tfvars
 ```
 
-(`module.fleetmind` is your outer module call; `module.agent["<agent_id>"]` is the per-agent submodule instance; `aws_instance.agent` is the EC2 resource.) The replacement gets a new instance ID; IAM role, security group, and secrets are preserved, and bootstrap re-runs on first boot.
+(`module.fleetmind` = outer module call; `module.agent["<agent_id>"]` = per-agent submodule instance; `aws_instance.agent` = EC2 resource.) Replacement gets a new instance ID; IAM role, SG, secrets preserved; bootstrap re-runs on first boot.
 
 ### Drift between `enable_interface_endpoints` and actual endpoints
 
@@ -160,8 +160,8 @@ terraform apply \
 
 **Cause:**
 
-1. **BYO VPC mode** — the toggle is ignored when `var.vpc_id` is set (gated on `local.create_vpc`). See [`EXISTING-VPC.md`](./EXISTING-VPC.md).
-2. **Endpoint creation failed silently.** Check `terraform state list | grep endpoint` for `aws_vpc_endpoint` resources (`ssm`, `ssmmessages`, `ec2messages`, `secretsmanager`); missing ones mean the original apply hit a quota/permission issue.
+1. **BYO VPC mode** — the toggle is ignored when `var.vpc_id` is set (gated on `local.create_vpc`); see [`EXISTING-VPC.md`](./EXISTING-VPC.md).
+2. **Endpoint creation failed silently** — check `terraform state list | grep endpoint` for `aws_vpc_endpoint` resources (`ssm`, `ssmmessages`, `ec2messages`, `secretsmanager`); missing ones mean the original apply hit a quota/permission issue.
 
 **Fix for case 2:** `terraform apply -target='module.fleetmind.aws_vpc_endpoint.interface' -var-file=...`, then check the console for the failure.
 
@@ -171,7 +171,7 @@ terraform apply \
 
 **Symptom:** Worker updates a task to `shipped` in DDB; PM never wakes; no errors in either gateway's log.
 
-**Background:** Terminal task events are delivered to the PM over **NATS push**, not the old EventBridge Pipe → SSM Run Command pipeline (removed, along with its DLQs/alarms). This module creates no SQS/EventBridge/SSM wake infrastructure.
+**Background:** Terminal task events reach the PM over **NATS push**. This module creates no SQS/EventBridge/SSM wake infrastructure.
 
 Check instead (provisioned by `modules/agent/user_data/agent_bootstrap.sh.tpl`, STAGE 14, on the agent EC2s — not by this submodule):
 
@@ -190,7 +190,7 @@ Common causes: subscriber `.path` unit hasn't started its `.service` yet (needs 
 
 **Symptom:** Destroyed a fleet (`secret_recovery_window_days = 0`), then immediately re-applied with the same name; apply errors with this message.
 
-**Cause:** Force-deletion (`recovery_window_in_days = 0`) propagates eventually-consistently in Secrets Manager — your destroy issued the force-delete, and the re-apply's create collides with the still-propagating deletion. (Just *setting* `secret_recovery_window_days = 0` and re-applying without a destroy in between doesn't trigger this.)
+**Cause:** Force-deletion (`recovery_window_in_days = 0`) propagates eventually-consistently in Secrets Manager — the re-apply's create collides with the still-propagating deletion. (Just *setting* `secret_recovery_window_days = 0` and re-applying without a destroy in between doesn't trigger this.)
 
 **Fix:** Wait ~30 seconds between destroy and re-apply, or force-purge first:
 
