@@ -98,15 +98,20 @@ def main() -> int:
         'chmod 0700 "$OPENCLAW_HOME/.config/fleetmind"',
         "echo \"[bootstrap] npm $(npm --version) available on $RUNTIME_PATH\"",
         "npm install -g \"$OPENCLAW_PKG\"",
-        "runuser -u \"$OPENCLAW_USER\" -- env HOME=\"$WORKSPACE_DIR\" PATH=\"$RUNTIME_PATH\" openclaw plugins install @openclaw/slack --force",
-        # Standard OpenClaw layout: workspace lives under the OS account home,
-        # not a separate /opt path.
-        'WORKSPACE_BASE="$OPENCLAW_HOME/.openclaw/workspace"',
+        # Standard OpenClaw layout, one agent per host: the plugin installer's
+        # HOME is the OS account home itself, not a nested per-agent workspace.
+        "runuser -u \"$OPENCLAW_USER\" -- env HOME=\"$OPENCLAW_HOME\" PATH=\"$RUNTIME_PATH\" openclaw plugins install @openclaw/slack --force",
+        # No per-agent subdirectory: the workspace *is* $OPENCLAW_HOME/.openclaw/workspace.
+        'WORKSPACE_DIR="$OPENCLAW_HOME/.openclaw/workspace"',
     ):
         require(rendered, expected)
 
     if "/opt/openclaw" in rendered:
         raise AssertionError("Rendered bootstrap must not reference the legacy /opt/openclaw workspace path")
+    if "WORKSPACE_BASE=\"" in rendered:
+        raise AssertionError("Rendered bootstrap must not derive a separate WORKSPACE_BASE (one agent per host)")
+    if re.search(r"\.openclaw/workspace/\$\{?AGENT_ID\}?", rendered) or "WORKSPACE_DIR=\"$WORKSPACE_BASE/$AGENT_ID\"" in rendered:
+        raise AssertionError("Rendered bootstrap must not nest the workspace under a per-agent-id subdirectory")
 
     gateway = section(
         rendered,
@@ -119,16 +124,20 @@ def main() -> int:
         'chown "$OPENCLAW_USER:$OPENCLAW_USER"',
     )
 
-    # Both are systemd *user* units with the FleetMind application-state HOME,
-    # PATH, workspace, and credential file. Neither needs a User= directive or
-    # sudo to operate.
+    # Both are systemd *user* units with the OS account's own HOME (standard
+    # one-agent-per-host layout — no nested workspace-as-HOME), PATH, and
+    # credential file. Neither needs a User= directive or sudo to operate.
     for unit in (gateway, nats):
-        require(unit, "WorkingDirectory=$WORKSPACE_DIR")
-        require(unit, "Environment=HOME=$WORKSPACE_DIR")
+        require(unit, "WorkingDirectory=$OPENCLAW_HOME")
+        require(unit, "Environment=HOME=$OPENCLAW_HOME")
         require(unit, "Environment=PATH=$RUNTIME_PATH")
         require(unit, "EnvironmentFile=-$ENV_FILE")
         if "User=" in unit:
             raise AssertionError("A systemd user unit must not set User=")
+
+    require(gateway, "ConditionPathExists=$OPENCLAW_HOME/.openclaw/openclaw.json")
+    require(nats, "Environment=FLEET_YAML=$NATS_FLEET_YAML")
+    require(rendered, 'NATS_FLEET_YAML="$WORKSPACE_DIR/fleet.yaml"')
 
     require(gateway, "ExecStartPre=/usr/local/bin/fetch-agent-secrets $FLEET_NAME $AGENT_ID $ENV_FILE $AWS_REGION")
     require(nats, "ExecStartPre=/usr/local/bin/fetch-agent-secrets $FLEET_NAME $AGENT_ID $ENV_FILE $AWS_REGION")
@@ -177,13 +186,13 @@ def main() -> int:
     if sum(line == alias_source for line in rendered.splitlines()) != 2:
         raise AssertionError("FleetMind aliases must load in both Bash and login-shell profiles")
 
-    # FleetMind deploys and owns application state in the workspace. A link in
-    # the OS account home can be dangling before that state exists, which makes
-    # OpenClaw's plugin installer fail with ENOTDIR.
+    # One agent per host: the workspace and $OPENCLAW_HOME/.openclaw/ are both
+    # plain children of $OPENCLAW_HOME, not one nested inside the other, so no
+    # symlink is ever needed to reconcile them.
     if 'ln -sfn "$WORKSPACE_DIR/.openclaw" "$OPENCLAW_HOME/.openclaw"' in rendered:
-        raise AssertionError("Bootstrap must not create a potentially dangling ~/.openclaw symlink")
-    if 'HOME="$OPENCLAW_HOME" PATH="$RUNTIME_PATH" openclaw plugins install' in rendered:
-        raise AssertionError("Plugin install must use the workspace application-state HOME")
+        raise AssertionError("Bootstrap must not create a ~/.openclaw symlink")
+    if 'HOME="$WORKSPACE_DIR" PATH="$RUNTIME_PATH" openclaw plugins install' in rendered:
+        raise AssertionError("Plugin install must use $OPENCLAW_HOME, not the workspace directory, as HOME")
 
     print("agent bootstrap rendered-user-data assertions passed")
     return 0
