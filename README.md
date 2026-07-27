@@ -4,7 +4,7 @@ Terraform module for [FleetMind](https://github.com/Continuous-Agentics/fleetmin
 
 Provisions per-agent EC2 instances, a DynamoDB ContextStore, optional task-ledger delegation primitives (DynamoDB + S3 + IAM), per-agent IAM roles, VPC + endpoints, and security groups.
 
-Consumed through [`fleetmind-template`](https://github.com/Continuous-Agentics/fleetmind-template). Check the [compatibility matrix](https://github.com/Continuous-Agentics/fleetmind/blob/main/docs/COMPATIBILITY.md) before bumping `?ref=`.
+Canonical, standalone, independently-versioned Terraform module — tagged and pinned via `?ref=`, consumed through [`fleetmind-template`](https://github.com/Continuous-Agentics/fleetmind-template). Check the [compatibility matrix](https://github.com/Continuous-Agentics/fleetmind/blob/main/docs/COMPATIBILITY.md) before bumping `?ref=`.
 
 ## Layout
 
