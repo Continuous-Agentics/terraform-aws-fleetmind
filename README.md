@@ -1,38 +1,34 @@
 # terraform-aws-fleetmind
 
-Terraform module for [Fleetmind](https://github.com/Continuous-Agentics/fleetmind) — multi-bot fleet infrastructure on AWS.
+Terraform module for [FleetMind](https://github.com/Continuous-Agentics/fleetmind) — multi-bot fleet infrastructure on AWS.
 
-Provisions a fleet of OpenClaw agent EC2 instances with a DynamoDB ContextStore, optional task-ledger primitives (DynamoDB single-table, S3 narratives bucket, IAM policies), per-agent IAM roles, VPC + endpoints, and security groups.
+Provisions per-agent EC2 instances, a DynamoDB ContextStore, optional task-ledger delegation primitives (DynamoDB + S3 + IAM), per-agent IAM roles, VPC + endpoints, and security groups.
 
-## Status
+Canonical, standalone, independently-versioned Terraform module — tagged and pinned via `?ref=`, consumed through [`fleetmind-template`](https://github.com/Continuous-Agentics/fleetmind-template). Check the [compatibility matrix](https://github.com/Continuous-Agentics/fleetmind/blob/main/docs/COMPATIBILITY.md) before bumping `?ref=`.
 
-FleetMind's v1 AWS module baseline. Operators normally consume this module through [`fleetmind-template`](https://github.com/Continuous-Agentics/fleetmind-template). See the FleetMind [compatibility matrix](https://github.com/Continuous-Agentics/fleetmind/blob/main/docs/COMPATIBILITY.md) before upgrading a fleet.
-
-## Module layout
+## Layout
 
 ```
-terraform-aws-fleetmind/
-├── main.tf, variables.tf, outputs.tf   # root: composition + cross-cutting locals
-├── vpc.tf                              # VPC + endpoints via terraform-aws-modules/vpc/aws (BYO VPC supported)
-├── dynamodb.tf                         # ContextStore table (gated on context_store_backend)
-├── sg.tf                               # fleet security group
-└── modules/
-    ├── agent/                          # one bot: EC2 + IAM role + per-agent secrets
-    └── task-ledger/                    # delegation substrate (DDB + S3 + IAM)
+main.tf, variables.tf, outputs.tf   # root composition + cross-cutting locals
+vpc.tf                              # VPC + endpoints (terraform-aws-modules/vpc/aws, BYO VPC supported)
+dynamodb.tf                         # ContextStore table (gated on context_store_backend)
+sg.tf                               # fleet security group
+modules/agent/                      # one bot: EC2 + IAM role + per-agent secrets
+modules/task-ledger/                # delegation substrate (DDB + S3 + IAM)
 ```
 
-Networking is built on upstream [`terraform-aws-modules/vpc/aws`](https://github.com/terraform-aws-modules/terraform-aws-vpc) (pinned `~> 5.0`). BYO VPC is supported via `var.vpc_id` + the `existing_*_subnet_ids` pair.
+Networking is built on upstream [`terraform-aws-modules/vpc/aws`](https://github.com/terraform-aws-modules/terraform-aws-vpc) (`~> 5.0`). BYO VPC: `var.vpc_id` + `existing_*_subnet_ids`.
 
 ## Consumer setup
 
-Consumers configure their own `provider "aws"`, Terraform backend, and `default_tags` in their root module:
+Configure your own `provider "aws"`, backend, and `default_tags`:
 
 ```hcl
 terraform {
   required_version = ">= 1.5"
-
   backend "s3" {
     bucket         = "my-fleet-tfstate"
+    key            = "fleets/my-fleet/terraform.tfstate"
     region         = "us-west-2"
     dynamodb_table = "my-fleet-tfstate-lock"
     encrypt        = true
@@ -41,65 +37,58 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
-
   default_tags {
-    tags = {
-      Project     = var.fleet_name
-      ManagedBy   = "terraform"
-      Environment = "production"
-    }
+    tags = { Project = var.fleet_name, ManagedBy = "terraform", Environment = "production" }
   }
 }
 
 module "fleetmind" {
   source = "github.com/Continuous-Agentics/terraform-aws-fleetmind?ref=v1.1.1"
 
-  fleet_name              = "my-fleet"
-  aws_region              = "us-west-2"
-  agent_names             = ["pm", "fe"]
-  agent_orchestrators     = { pm = true, fe = false }
-  agent_providers         = { pm = ["anthropic"], fe = ["anthropic"] }   # REQUIRED — explicit list of model providers per agent
-  delegation_enabled      = true
+  fleet_name          = "my-fleet"
+  aws_region          = "us-west-2"
+  agent_names         = ["pm", "fe"]
+  agent_orchestrators = { pm = true, fe = false }
+  agent_providers     = { pm = ["anthropic"], fe = ["anthropic"] }   # REQUIRED — model providers per agent
+  delegation_enabled  = true
   # ...see variables.tf for the full input surface
 }
 ```
 
-**Recommended: explicit per-fleet root stacks with explicit backend keys.** Give each fleet its own state by setting a distinct `key` in the consumer's `backend "s3"` block, for example `key = "fleets/<fleet-name>/terraform.tfstate"`. Do this either by maintaining a separate root module directory per fleet (e.g. `fleets/<fleet-name>/main.tf`, each with its own hardcoded `backend "s3" { key = ... }`), or with a single root module plus a small wrapper (`terraform init -backend-config="key=fleets/<fleet-name>/terraform.tfstate" -reconfigure`) driven per-fleet from CI/CD. Explicit keys make each fleet's state independently discoverable in the S3 console/CLI, make CI logs and IAM/bucket policies easier to reason about, and avoid relying on the operator's currently selected CLI workspace.
+**Use an explicit backend `key` per fleet** (e.g. `fleets/<fleet-name>/terraform.tfstate`), either as a separate root module directory per fleet or one root driven per-fleet via `terraform init -backend-config="key=..." -reconfigure`. This keeps state discoverable in S3/CI/IAM instead of depending on the CLI's currently-selected workspace.
 
-**CLI workspaces (`terraform workspace new <fleet-name>`) are supported only as an optional, ephemeral/dev-only variant** — quick to spin up for a scratch fleet or local experiment, where the backend `key` is left unset so workspaces auto-prefix state under `env:/<workspace>/`. Don't use bare workspaces for anything you intend to keep around or run in CI: it's easy to `terraform workspace select` the wrong fleet and apply against the wrong state, and workspace-derived state paths are less explicit in reviews and runbooks. If you're currently on workspaces and want to move to explicit keys, see ["Migrating from CLI workspaces to explicit backend keys"](docs/MODULE-TROUBLESHOOTING.md#migrating-from-cli-workspaces-to-explicit-backend-keys) in `MODULE-TROUBLESHOOTING.md`.
+CLI workspaces (`terraform workspace new <fleet>`) are for ephemeral/dev fleets only — don't use them for anything kept around or run in CI. To migrate a workspace-based fleet to an explicit key, see [`docs/MODULE-TROUBLESHOOTING.md`](docs/MODULE-TROUBLESHOOTING.md#migrating-from-cli-workspaces-to-explicit-backend-keys).
 
 ## ContextStore backend
 
-`var.context_store_backend` (default `"dynamodb"`) selects the storage backend for the fleet's shared cross-agent key-value state. Today only `"dynamodb"` is supported — the agent runtime (`src/runtime/context.ts`) only speaks DynamoDB. The variable exists to set up a clean seam for future backends (e.g. `"rds"`) without an interface break.
+`var.context_store_backend` (default `"dynamodb"`) selects the cross-agent shared key-value store. Only `"dynamodb"` is supported — the agent runtime (`src/runtime/context.ts`) only speaks DynamoDB.
 
 ## What this module manages
 
-- VPC + subnets + endpoints (via upstream `terraform-aws-modules/vpc/aws` and `//modules/vpc-endpoints`; BYO VPC via `var.vpc_id`)
+- VPC + subnets + endpoints (`terraform-aws-modules/vpc/aws` + `//modules/vpc-endpoints`; BYO VPC via `var.vpc_id`)
 - Fleet security group
-- Per-agent EC2 instances, IAM roles, and Secrets Manager placeholders (via `modules/agent/`, one call per agent). Model-provider API keys live in one Secrets Manager secret **per (agent, provider)** at `<fleet_name>/agents/<agent>/providers/<provider>`. Slack + hooks secrets remain at the existing `<fleet_name>/agents/<agent>/{slack,hooks}` paths.
-- DynamoDB ContextStore table (when `context_store_backend = "dynamodb"`)
-- *Optional* task-ledger submodule (`var.delegation_enabled = true`): DynamoDB tasks table, S3 narratives bucket, and PM/worker IAM policies. Terminal-state agent wake-ups are delivered over NATS push (the `fleetmind nats subscribe` units installed by the agent bootstrap), not an EventBridge Pipe/SSM Run Command wake pipeline (that path was removed).
+- Per-agent EC2, IAM roles, and Secrets Manager placeholders (`modules/agent/`, one call per agent). Model-provider API keys live one secret **per (agent, provider)** at `<fleet_name>/agents/<agent>/providers/<provider>`; Slack + hooks secrets stay at `<fleet_name>/agents/<agent>/{slack,hooks}`.
+- DynamoDB ContextStore table (`context_store_backend = "dynamodb"`)
+- *Optional* task-ledger submodule (`delegation_enabled = true`): DDB tasks table, S3 narratives bucket, PM/worker IAM policies. Terminal-state wake-ups are delivered over NATS push.
 
 ## Agent runtime baseline
 
-Each agent host uses a practical, user-owned OpenClaw runtime rather than a locked-down system account. Bootstrap installs Node/npm and Docker, then idempotently creates/reconciles the `openclaw` account (`/home/openclaw`, Bash) and grants it Docker-group access. The gateway and FleetMind NATS subscriber are both `systemd --user` services for that account. The account home holds user-manager units and the user-owned fetched-secret file; lingering keeps the user manager available across logout and boot. Normal gateway/subscriber operations do not require sudo.
+Each host runs a user-owned OpenClaw runtime. Bootstrap installs Node/npm and Docker, then idempotently creates/reconciles the `openclaw` account (`/home/openclaw`, Bash, Docker-group access). Gateway and NATS subscriber run as `systemd --user` services under that account (lingering keeps the user manager alive across boot). Normal operations don't need sudo.
 
-The established workspace path remains `/opt/openclaw/workspace/<agent>` so existing rendered fleets continue to deploy to the same location. It is also the application-state HOME for the Slack plugin install, OpenClaw gateway, and NATS subscriber: its `.openclaw` directory is created and deployed there. Bootstrap does not link `/home/openclaw/.openclaw` to that path, because a link created before workspace state exists is dangling and prevents plugin installation. Moving application state into the OS account home requires a deliberate FleetMind CLI/deploy-contract migration.
+Workspace path: `/opt/openclaw/workspace/<agent>` — also HOME for the Slack plugin, gateway, and NATS subscriber (`.openclaw` lives there, not under `/home/openclaw`).
 
-### Operator shell
+**Operator shell:** `sudo -iu openclaw`. Run `ocalias` to list generated aliases. Gateway: `ocstatus`/`oclog`/`octail`/`ocstart`/`ocstop`/`ocrestart`. NATS subscriber: `ocnatsstatus`/`ocnatslog`/`ocnatstail`/`ocnatsrestart`.
 
-For post-onboarding gateway or subscriber operations, enter the FleetMind runtime account with `sudo -iu openclaw`. Its login shell loads only the module-generated FleetMind profile—no local operator configuration or secrets—and provides `ocalias` to list available shortcuts. Use `ocstatus`, `oclog`, or `octail` for the gateway, and `ocnatsstatus`, `ocnatslog`, or `ocnatstail` for the subscriber. The corresponding `ocstart`, `ocstop`, `ocrestart`, and `ocnatsrestart` shortcuts manage the user services without copying a raw D-Bus or runtime-directory command into onboarding guidance.
-
-> **Companion work required before using `fleetmind push ... --restart` with this module baseline:** this module intentionally does not modify the FleetMind CLI or template. A FleetMind CLI change must (1) make its AWS SSM pull-self command run `fleetmind` as `openclaw` with HOME, PATH, `XDG_RUNTIME_DIR`, and the user D-Bus address set, and (2) replace the Linux service manager's `sudo systemctl` calls with `systemctl --user` restarts and reset-failed calls for both `openclaw-<agent>` and `fleetmind-nats-<agent>`. The FleetMind template needs corresponding operating and troubleshooting documentation updates: refer to the `openclaw` account and `systemctl --user`, remove the `ec2-user` sudoers workaround, and preserve its existing `/opt/openclaw/workspace` setting. No template schema or workspace-path change is needed.
+> `fleetmind push ... --restart` needs a companion FleetMind CLI change (not in this module): run its SSM pull-self command as `openclaw` with HOME/PATH/`XDG_RUNTIME_DIR`/D-Bus set, using `systemctl --user` for `openclaw-<agent>` and `fleetmind-nats-<agent>`.
 
 ## Examples
 
-- [`examples/basic`](examples/basic) — two-agent fleet with module-managed VPC, NATS, ContextStore, deploy-staging bucket, and task-ledger substrate.
-- [`examples/existing-vpc`](examples/existing-vpc) — smallest BYO-VPC footprint for an existing private subnet layout.
+- [`examples/basic`](examples/basic) — two-agent fleet, module-managed VPC, NATS, ContextStore, deploy-staging bucket, task-ledger.
+- [`examples/existing-vpc`](examples/existing-vpc) — smallest BYO-VPC footprint.
 
-## Requirements, providers, resources, inputs, and outputs
+## API reference
 
-The API reference below is generated by [`terraform-docs`](https://terraform-docs.io/) from `.terraform-docs.yml`. Run `terraform-docs .` before opening a PR that changes variables, outputs, providers, modules, or resources.
+Generated by [`terraform-docs`](https://terraform-docs.io/) from `.terraform-docs.yml`. Run `terraform-docs .` before a PR that changes variables, outputs, providers, modules, or resources.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
@@ -112,7 +101,7 @@ The API reference below is generated by [`terraform-docs`](https://terraform-doc
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 5.0 |
 ## Modules
 
 | Name | Source | Version |
@@ -207,69 +196,35 @@ The API reference below is generated by [`terraform-docs`](https://terraform-doc
 | <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | VPC ID — either the VPC this module created via terraform-aws-modules/vpc/aws (when var.vpc\_id is empty) or the BYO VPC adopted from var.vpc\_id. |
 <!-- END_TF_DOCS -->
 
+Selected outputs: per-agent maps (`instance_ids`, `private_ips`, `ssm_connect`, `agent_workspace_paths`, `agent_service_names`, `agent_iam_role_names`, `secrets_arns`), `vpc_id`, ContextStore (`context_store_backend`, `context_store_table_name`, `context_store_table_arn`), `ledger_bucket_name` (the always-created deploy-staging bucket), and task-ledger outputs when delegation is enabled.
 
-Selected consumer-facing outputs include per-agent maps (`instance_ids`, `private_ips`, `ssm_connect`, `agent_workspace_paths`, `agent_service_names`, `agent_iam_role_names`, `secrets_arns`), networking (`vpc_id`), ContextStore (`context_store_backend`, `context_store_table_name`, `context_store_table_arn`), the always-created deploy-staging bucket (`ledger_bucket_name`), and task-ledger outputs when delegation is enabled.
-
-> Note: `ledger_bucket_name` is the always-created deploy-staging bucket; `task_ledger_s3_bucket` is the same bucket *as exposed by the task-ledger submodule* and returns an empty string when delegation is disabled. Most consumers should use `ledger_bucket_name`.
+> `ledger_bucket_name` is the always-created deploy-staging bucket; `task_ledger_s3_bucket` is the same bucket as exposed by the task-ledger submodule (empty string when delegation is disabled). Most consumers should use `ledger_bucket_name`.
 
 ## Operational controls
 
-The module includes explicit controls for balancing safety vs. rollout speed:
+`agent_rollout_trigger` / `nats_rollout_trigger`: AMI and bootstrap (`user_data`) drift is ignored by default to avoid surprise replacements. Change either trigger and apply to force a rollout.
 
-- `agent_rollout_trigger`
-- `nats_rollout_trigger`
-
-AMI and bootstrap (`user_data`) drift is ignored by default to avoid surprise replacements on `terraform apply`.
-To perform an intentional rollout, change either trigger value (for example from `"2026-05-27a"` to `"2026-05-27b"`) and apply.
-
-NATS transport hardening options are also available:
-
-- `nats_auth_token` (optional token auth)
-- `nats_tls_enabled`
-- `nats_tls_cert_pem`
-- `nats_tls_key_pem`
-- `nats_tls_ca_pem` (optional, for client cert verification)
-
-When TLS is enabled, cert/key PEM values are written on host during bootstrap and referenced in `nats-server.conf`.
+NATS hardening: `nats_auth_token` (token auth), `nats_tls_enabled` + `nats_tls_cert_pem`/`nats_tls_key_pem`/`nats_tls_ca_pem` (TLS, PEMs written on host during bootstrap into `nats-server.conf`).
 
 ## CI checks
 
-GitHub Actions runs Terraform quality and security checks on PRs and `main` pushes:
-
-- `terraform fmt -check -recursive`
-- `terraform init -backend=false`
-- `terraform validate`
-- `tflint --recursive`
-- `tfsec`
+GitHub Actions runs on PRs and `main` pushes: `terraform fmt -check -recursive`, `terraform init -backend=false`, `terraform validate`, terraform-docs drift check, `terraform test`, example validation, `tflint --recursive`, Trivy IaC scan.
 
 ## Operational runbook
 
 ### Rolling out bootstrap or AMI changes
 
-By default, AMI and bootstrap (`user_data`) drift is **ignored** to prevent surprise instance replacements on apply.
-
-To perform an intentional rollout:
-
-1. Update the rollout trigger token in your `fleet.tfvars`:
+Bump the rollout trigger in `fleet.tfvars`, then apply:
 
 ```hcl
-# Bump this whenever you want to roll out changes to agents
 agent_rollout_trigger = "2026-05-27-rollout-v1"
-
-# Bump this whenever you want to roll out changes to the NATS server
-nats_rollout_trigger = "2026-05-27-rollout-v1"
+nats_rollout_trigger  = "2026-05-27-rollout-v1"
 ```
-
-2. Apply:
 
 ```bash
 terraform apply -var-file=fleet.tfvars
-```
-
-Terraform will replace the affected EC2 instances. Use `-target` to test on a single agent first:
-
-```bash
-terraform apply -target=module.agent[\"agent_name\"] -var-file=fleet.tfvars
+# Test on one agent first:
+terraform apply -target='module.agent["agent_name"]' -var-file=fleet.tfvars
 ```
 
 ### Enabling NATS token authentication and TLS
@@ -277,53 +232,30 @@ terraform apply -target=module.agent[\"agent_name\"] -var-file=fleet.tfvars
 NATS defaults to VPC-internal, unauthenticated access. For production, enable both:
 
 ```hcl
-nats_auth_token   = "YOUR_RANDOM_TOKEN_HERE"  # Or generate: $(openssl rand -hex 32)
+nats_auth_token   = "YOUR_RANDOM_TOKEN_HERE"  # or: $(openssl rand -hex 32)
 nats_tls_enabled  = true
 nats_tls_cert_pem = file("${path.module}/certs/nats-server.crt")
 nats_tls_key_pem  = file("${path.module}/certs/nats-server.key")
-# Optional: require client cert verification
-nats_tls_ca_pem   = file("${path.module}/certs/ca.crt")
+nats_tls_ca_pem   = file("${path.module}/certs/ca.crt")  # optional client cert verification
 ```
 
-Once enabled:
-- Agents automatically use the token and TLS when connecting to NATS.
-- Token is passed via secret injection; verify with: `aws secretsmanager get-secret-value --secret-id <fleet_name>/agents/<agent_id>/gateway --region <region>`
-- Test connectivity: `nats -s nats://nats.<fleet_name>.internal:4222 --token <token> sub '>'` (from an agent instance)
+Agents pick up the token/TLS automatically. Verify: `aws secretsmanager get-secret-value --secret-id <fleet_name>/agents/<agent_id>/gateway --region <region>`. Test connectivity: `nats -s nats://nats.<fleet_name>.internal:4222 --token <token> sub '>'` (from an agent instance).
 
 ### Recovering or replacing the NATS instance
 
-The NATS server is stateless (no JetStream) — agents cache fleet config locally. Recovery is straightforward:
+NATS is stateless (no JetStream) — agents cache fleet config locally.
 
-**Option 1: Planned replacement** (minimal downtime, ~2 min per agent):
-1. Bump `nats_rollout_trigger` in tfvars.
-2. Run `terraform apply`.
-3. Agents will detect NATS unavailable, wait up to 2 minutes for it to come back online, then start normally.
+- **Planned replacement** (~2 min downtime per agent): bump `nats_rollout_trigger`, `terraform apply`. Agents wait up to 2 minutes for NATS to come back, then resume.
+- **Emergency replacement**: `aws ec2 terminate-instances --instance-ids <instance-id> --region <region>`, then `terraform apply`. Agents fail over after ~10s (DNS TTL).
+- **Inspect logs first**: `aws ssm start-session --target <nats-instance-id> --region <region>`, then `journalctl -u nats -n 100 --no-pager` / `cat /var/log/nats-bootstrap.log`.
 
-**Option 2: Immediate emergency replacement**:
-1. Terminate the NATS EC2 instance manually: `aws ec2 terminate-instances --instance-ids <instance-id> --region <region>`
-2. Agents will fail over after ~10 seconds (DNS TTL expires).
-3. Run `terraform apply` to spin up a new NATS instance.
-
-**Option 3: Inspect NATS logs before replacement**:
-```bash
-aws ssm start-session --target <nats-instance-id> --region <region>
-# Inside the instance:
-journalctl -u nats -n 100 --no-pager
-cat /var/log/nats-bootstrap.log
-```
-
-After any NATS replacement, verify agent subscribers are running:
-```bash
-# On any agent instance:
-systemctl status fleetmind-nats-<agent_id>.service
-journalctl -u fleetmind-nats-<agent_id> -n 20 --no-pager
-```
+After any replacement, verify subscribers on each agent: `systemctl status fleetmind-nats-<agent_id>.service` / `journalctl -u fleetmind-nats-<agent_id> -n 20 --no-pager`.
 
 ## Docs
 
-- [`docs/EXISTING-VPC.md`](docs/EXISTING-VPC.md) — deploying into an existing VPC (BYO VPC mode), requirements, current interface-endpoints limitation.
-- [`docs/TASK-LEDGER-STANDALONE.md`](docs/TASK-LEDGER-STANDALONE.md) — calling `modules/task-ledger/` directly from your own Terraform root, for callers who don't want the full fleetmind EC2/VPC stack.
-- [`docs/MODULE-TROUBLESHOOTING.md`](docs/MODULE-TROUBLESHOOTING.md) — IaC-side failures: state lock recovery, derived.tfvars propagation, per-agent taint/replace, DLQ inspection, `secret_recovery_window_days` gotchas.
+- [`docs/EXISTING-VPC.md`](docs/EXISTING-VPC.md) — BYO VPC mode, requirements, interface-endpoints limitation.
+- [`docs/TASK-LEDGER-STANDALONE.md`](docs/TASK-LEDGER-STANDALONE.md) — calling `modules/task-ledger/` directly.
+- [`docs/MODULE-TROUBLESHOOTING.md`](docs/MODULE-TROUBLESHOOTING.md) — state lock recovery, tfvars propagation, taint/replace, secret-deletion collisions.
 - [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md) — per-version upgrade notes.
 
 ## License
