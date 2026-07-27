@@ -34,8 +34,8 @@ output "provider_secret_names" {
 }
 
 output "workspace_path" {
-  description = "Workspace directory path on the instance."
-  value       = "/opt/openclaw/workspace/${var.name}"
+  description = "Workspace directory path on the instance. One agent per host: this is the standard OpenClaw workspace itself (no per-agent subdirectory) — var.name identifies the systemd service/secrets/artifacts only."
+  value       = "/home/openclaw/.openclaw/workspace"
 }
 
 output "service_name" {

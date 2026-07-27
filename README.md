@@ -75,7 +75,7 @@ CLI workspaces (`terraform workspace new <fleet>`) are for ephemeral/dev fleets 
 
 Each host runs a user-owned OpenClaw runtime. Bootstrap installs Node/npm and Docker, then idempotently creates/reconciles the `openclaw` account (`/home/openclaw`, Bash, Docker-group access). Gateway and NATS subscriber run as `systemd --user` services under that account (lingering keeps the user manager alive across boot). Normal operations don't need sudo.
 
-Workspace path: `/opt/openclaw/workspace/<agent>` — also HOME for the Slack plugin, gateway, and NATS subscriber (`.openclaw` lives there, not under `/home/openclaw`).
+Workspace path: `/home/openclaw/.openclaw/workspace` — also HOME for the Slack plugin, gateway, and NATS subscriber (`.openclaw` lives there, under the `openclaw` account's home). One agent per host, so there's no per-agent subdirectory — the agent id identifies the systemd service, Secrets Manager paths, and deploy artifacts, not a workspace path segment. Matches the standard `~/.openclaw` layout FleetMind's local/ssh targets already use.
 
 **Operator shell:** `sudo -iu openclaw`. Run `ocalias` to list generated aliases. Gateway: `ocstatus`/`oclog`/`octail`/`ocstart`/`ocstop`/`ocrestart`. NATS subscriber: `ocnatsstatus`/`ocnatslog`/`ocnatstail`/`ocnatsrestart`.
 
