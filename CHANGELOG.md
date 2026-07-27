@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Always grant agent roles read/list access to the fleet bucket's `deploy-staging/` prefix. `fleetmind push fleet` uses this prefix for every fleet, including fleets with `delegation_enabled = false`.
-- Install Node.js from an official nodejs.org release tarball instead of the NodeSource RPM repo. NodeSource's `rpm.nodesource.com` intermittently returns 403 on the ARM64 (Graviton) fleet default, which aborted cloud-init before OpenClaw/FleetMind ever installed. `node_version` stays a major-version-only input (default `"24"`, unchanged from before); the bootstrap template now internally resolves the accepted major version to a pinned exact release (currently `24.18.0`) verified against a hardcoded SHA-256 checksum for both the x86\_64 and aarch64 tarballs (no trust-on-first-use checksum fetch), and fails clearly, before any download, on architectures other than x86\_64/aarch64 or on any `node_version` other than `"24"`.
+- Install Node.js via NodeSource's standard `setup_<major>.x` bootstrap script (`curl -fsSL https://rpm.nodesource.com/setup_${NODE_VERSION}.x | bash -` then `dnf install -y nodejs`). `node_version` stays a major-version-only input (default `"24"`, unchanged from before).
 
 ### Changed
 - Install FleetMind from public npm during agent bootstrap; remove the shared GitHub Packages PAT SSM read policy from agent roles.

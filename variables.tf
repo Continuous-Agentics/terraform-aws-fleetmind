@@ -50,13 +50,13 @@ variable "openclaw_version" {
 }
 
 variable "node_version" {
-  description = "Node.js major version to install on FleetMind agent instances (major only, e.g. \"24\"). Internally mapped to a pinned exact Node.js release (currently 24.18.0) and downloaded directly from nodejs.org's official Linux tarball (x86_64/aarch64), verified against a hardcoded SHA-256 checksum embedded in modules/agent/user_data/agent_bootstrap.sh.tpl — no NodeSource repo and no trust-on-first-use checksum fetch. Only \"24\" is supported today; to move the pin to a new minor/patch release, update the major-to-exact-release mapping and checksums in the bootstrap template, not this variable."
+  description = "Node.js major version to install on FleetMind agent instances via NodeSource RPMs (major only, e.g. \"24\"). Passed straight through to NodeSource's setup_<major>.x script (curl -fsSL https://rpm.nodesource.com/setup_<major>.x | bash -, then dnf install -y nodejs) in modules/agent/user_data/agent_bootstrap.sh.tpl. Only \"24\" is supported today."
   type        = string
   default     = "24"
 
   validation {
     condition     = can(regex("^24$", var.node_version))
-    error_message = "node_version must be the exact string \"24\" (major version only). The bootstrap template internally resolves this to a pinned exact Node.js 24 release verified by hardcoded SHA-256 checksum; it is not a pass-through for arbitrary Node.js versions."
+    error_message = "node_version must be the exact string \"24\" (major version only). This is passed to NodeSource's setup_<major>.x bootstrap script."
   }
 }
 
