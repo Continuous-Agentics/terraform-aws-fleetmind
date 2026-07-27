@@ -50,9 +50,14 @@ variable "openclaw_version" {
 }
 
 variable "node_version" {
-  description = "Node.js major version to install via NodeSource RPMs."
+  description = "Exact Node.js release installed on FleetMind agent instances (major.minor.patch, e.g. \"24.18.0\"). Downloaded directly from nodejs.org's official Linux tarball (x86_64/aarch64) and verified against a hardcoded SHA-256 checksum embedded in modules/agent/user_data/agent_bootstrap.sh.tpl — no NodeSource repo and no trust-on-first-use checksum fetch. Must be an exact Node.js 24 release with minor >= 15 (the first Node 24 minor verified on Amazon Linux 2023 aarch64); bump the pinned checksums in the bootstrap template before raising this default."
   type        = string
-  default     = "22"
+  default     = "24.18.0"
+
+  validation {
+    condition     = can(regex("^24\\.(1[5-9]|[2-9][0-9]|[1-9][0-9]{2,})\\.[0-9]+$", var.node_version))
+    error_message = "node_version must be an exact Node.js 24.x release with minor version >= 24.15 (e.g. \"24.18.0\"). Update the hardcoded SHA-256 checksums in modules/agent/user_data/agent_bootstrap.sh.tpl before bumping this default."
+  }
 }
 
 variable "allowed_ssh_cidrs" {

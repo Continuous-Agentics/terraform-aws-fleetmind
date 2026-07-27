@@ -24,7 +24,7 @@ def render() -> str:
         "fleet_name": "test-fleet",
         "agent_id": "worker",
         "openclaw_version": "latest",
-        "node_version": "22",
+        "node_version": "24.18.0",
         "aws_region": "us-west-2",
         "fleetmind_version": "latest",
         "fleetmind_package": "@continuous-agentics/fleetmind",
@@ -97,6 +97,15 @@ def main() -> int:
         'install -d -o "$OPENCLAW_USER" -g "$OPENCLAW_USER" -m 0700 "$OPENCLAW_HOME/.config/fleetmind"',
         'chmod 0700 "$OPENCLAW_HOME/.config/fleetmind"',
         "echo \"[bootstrap] npm $(npm --version) available on $RUNTIME_PATH\"",
+        # Official nodejs.org tarball install, not NodeSource: hardcoded
+        # checksum verification, arch detection/guard, PATH + npm prefix wiring.
+        'NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/${NODE_TARBALL}"',
+        'echo "${NODE_SHA256}  ${NODE_TMP_TARBALL}" | sha256sum -c -',
+        'NODE_SHA256="783130984963db7ba9cbd01089eaf2c2efb055c7c1693c943174b967b3050cb8"',
+        'NODE_SHA256="6b4484c2190274175df9aa8f28e2d758a819cb1c1fe6ab481e2f95b463ab8508"',
+        "unsupported architecture",
+        'export PATH="$RUNTIME_PATH"',
+        'export NPM_CONFIG_PREFIX="/usr/local"',
         "npm install -g \"$OPENCLAW_PKG\"",
         "runuser -u \"$OPENCLAW_USER\" -- env HOME=\"$WORKSPACE_DIR\" PATH=\"$RUNTIME_PATH\" openclaw plugins install @openclaw/slack --force",
     ):

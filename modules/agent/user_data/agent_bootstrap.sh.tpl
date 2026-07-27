@@ -12,7 +12,7 @@ set -euo pipefail
 #   fleet_name       – fleet namespace (used for SecretsManager paths)
 #   agent_id         – unique agent identifier (matches fleet.yaml id)
 #   openclaw_version – npm version to install ("latest" or pinned)
-#   node_version     – Node.js major version (e.g. "22")
+#   node_version     – exact Node.js release, major.minor.patch (e.g. "24.18.0")
 #   aws_region       – AWS region for SecretsManager calls
 # =============================================================================
 
@@ -62,15 +62,85 @@ dnf install -y amazon-ssm-agent
 systemctl enable --now amazon-ssm-agent
 echo "[bootstrap] amazon-ssm-agent: $(systemctl is-active amazon-ssm-agent)"
 
-# ── Node.js via NodeSource ────────────────────────────────────────────────────
-# Simpler than nvm; system-wide install; matches the pattern used by
-# Carpe's working bootstrap.
-echo "[bootstrap] STAGE 3: NodeSource repo setup at $(date)"
-curl -fsSL "https://rpm.nodesource.com/setup_$${NODE_VERSION}.x" | bash -
-echo "[bootstrap] STAGE 4: nodejs install starting at $(date)"
-dnf install -y nodejs
+# ── Node.js via official nodejs.org release tarball ──────────────────────────
+# NodeSource's RPM repo (rpm.nodesource.com) intermittently returns 403 and
+# aborts bootstrap before OpenClaw/FleetMind ever install (see incident: ARM64
+# fleets failing cloud-init on Node 22 setup). Installing directly from
+# nodejs.org removes that third-party dependency entirely. The download is
+# verified against a checksum hardcoded in this script (sourced by hand from
+# nodejs.org's published SHASUMS256.txt for this exact release) -- this script
+# never fetches a checksum file over the network and trusts it sight unseen
+# (no TOFU). Bump NODE_VERSION and the two checksums below together.
+echo "[bootstrap] STAGE 3: Node.js $${NODE_VERSION} install starting at $(date)"
 
-NODE_BIN="/usr/bin"
+case "$(uname -m)" in
+  x86_64)
+    NODE_ARCH="x64"
+    ;;
+  aarch64)
+    NODE_ARCH="arm64"
+    ;;
+  *)
+    echo "[bootstrap] FATAL: unsupported architecture '$(uname -m)' for Node.js $${NODE_VERSION} install (only x86_64 and aarch64 official Linux binaries are supported)" >&2
+    exit 1
+    ;;
+esac
+
+# Official SHA-256 checksums for node-v$${NODE_VERSION}-linux-{x64,arm64}.tar.gz,
+# copied by hand from https://nodejs.org/dist/v$${NODE_VERSION}/SHASUMS256.txt.
+# Update both entries whenever NODE_VERSION is bumped; installation refuses to
+# proceed for any version/arch pair without a pinned entry here.
+case "$${NODE_VERSION}-$${NODE_ARCH}" in
+  24.18.0-x64)
+    NODE_SHA256="783130984963db7ba9cbd01089eaf2c2efb055c7c1693c943174b967b3050cb8"
+    ;;
+  24.18.0-arm64)
+    NODE_SHA256="6b4484c2190274175df9aa8f28e2d758a819cb1c1fe6ab481e2f95b463ab8508"
+    ;;
+  *)
+    echo "[bootstrap] FATAL: no pinned SHA-256 checksum for node_version=$${NODE_VERSION} arch=$${NODE_ARCH}. Refusing to install an unverified Node.js binary -- add a checksum entry (from https://nodejs.org/dist/v$${NODE_VERSION}/SHASUMS256.txt) to modules/agent/user_data/agent_bootstrap.sh.tpl before changing node_version." >&2
+    exit 1
+    ;;
+esac
+
+NODE_TARBALL="node-v$${NODE_VERSION}-linux-$${NODE_ARCH}.tar.gz"
+NODE_URL="https://nodejs.org/dist/v$${NODE_VERSION}/$${NODE_TARBALL}"
+NODE_INSTALL_ROOT="/usr/local/lib/nodejs"
+NODE_INSTALL_DIR="$${NODE_INSTALL_ROOT}/node-v$${NODE_VERSION}-linux-$${NODE_ARCH}"
+NODE_BIN="$${NODE_INSTALL_DIR}/bin"
+
+if [ -x "$${NODE_BIN}/node" ] && [ "$($${NODE_BIN}/node --version)" = "v$${NODE_VERSION}" ]; then
+  echo "[bootstrap] Node v$${NODE_VERSION} already installed at $${NODE_INSTALL_DIR}, skipping download"
+else
+  echo "[bootstrap] Downloading $${NODE_URL}"
+  NODE_TMP_TARBALL="/tmp/$${NODE_TARBALL}"
+  curl -fsSL -o "$${NODE_TMP_TARBALL}" "$${NODE_URL}"
+
+  echo "$${NODE_SHA256}  $${NODE_TMP_TARBALL}" | sha256sum -c -
+
+  mkdir -p "$${NODE_INSTALL_ROOT}"
+  rm -rf "$${NODE_INSTALL_DIR}"
+  tar -xzf "$${NODE_TMP_TARBALL}" -C "$${NODE_INSTALL_ROOT}"
+  rm -f "$${NODE_TMP_TARBALL}"
+fi
+
+# Symlink into /usr/local/bin -- first entry on RUNTIME_PATH -- so node/npm/npx
+# are on PATH for root (this script), the openclaw system account, and every
+# systemd unit that sets Environment=PATH=$RUNTIME_PATH below.
+for bin in node npm npx; do
+  ln -sfn "$${NODE_BIN}/$${bin}" "/usr/local/bin/$${bin}"
+done
+
+# Make sure the rest of this bootstrap (still running as root) resolves
+# node/npm/npx from the symlinks above rather than relying on whatever PATH
+# cloud-init happened to inherit.
+export PATH="$RUNTIME_PATH"
+# Global npm installs (openclaw, fleetmind CLIs below) must land their bin
+# wrappers in /usr/local/bin -- the first entry on RUNTIME_PATH -- rather than
+# npm's default prefix (the Node install directory itself, which is not on
+# PATH once only node/npm/npx are symlinked out of it).
+export NPM_CONFIG_PREFIX="/usr/local"
+
 echo "[bootstrap] Node $(node --version) installed at $NODE_BIN"
 echo "[bootstrap] npm $(npm --version) available on $RUNTIME_PATH"
 
