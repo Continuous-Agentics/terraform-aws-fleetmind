@@ -452,14 +452,14 @@ Description=OpenClaw Agent ($AGENT_ID) — $FLEET_NAME fleet
 # first boot before the operator's first push. Once pull-self ships the workspace,
 # 'systemctl --user restart' starts the service fresh.
 ConditionPathExists=$WORKSPACE_DIR/.openclaw/openclaw.json
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Service]
 Type=simple
 WorkingDirectory=$WORKSPACE_DIR
 Restart=always
 RestartSec=10
-StartLimitBurst=5
-StartLimitIntervalSec=60
 
 # OpenClaw application state remains in FleetMind's deployed workspace. The
 # user unit and credential file themselves stay under the OS account home.
