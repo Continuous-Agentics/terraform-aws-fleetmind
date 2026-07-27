@@ -50,13 +50,13 @@ variable "openclaw_version" {
 }
 
 variable "node_version" {
-  description = "Exact Node.js release installed on FleetMind agent instances (major.minor.patch, e.g. \"24.18.0\"). Downloaded directly from nodejs.org's official Linux tarball (x86_64/aarch64) and verified against a hardcoded SHA-256 checksum embedded in modules/agent/user_data/agent_bootstrap.sh.tpl — no NodeSource repo and no trust-on-first-use checksum fetch. Must be an exact Node.js 24 release with minor >= 15 (the first Node 24 minor verified on Amazon Linux 2023 aarch64); bump the pinned checksums in the bootstrap template before raising this default."
+  description = "Node.js major version to install on FleetMind agent instances (major only, e.g. \"24\"). Internally mapped to a pinned exact Node.js release (currently 24.18.0) and downloaded directly from nodejs.org's official Linux tarball (x86_64/aarch64), verified against a hardcoded SHA-256 checksum embedded in modules/agent/user_data/agent_bootstrap.sh.tpl — no NodeSource repo and no trust-on-first-use checksum fetch. Only \"24\" is supported today; to move the pin to a new minor/patch release, update the major-to-exact-release mapping and checksums in the bootstrap template, not this variable."
   type        = string
-  default     = "24.18.0"
+  default     = "24"
 
   validation {
-    condition     = can(regex("^24\\.(1[5-9]|[2-9][0-9]|[1-9][0-9]{2,})\\.[0-9]+$", var.node_version))
-    error_message = "node_version must be an exact Node.js 24.x release with minor version >= 24.15 (e.g. \"24.18.0\"). Update the hardcoded SHA-256 checksums in modules/agent/user_data/agent_bootstrap.sh.tpl before bumping this default."
+    condition     = can(regex("^24$", var.node_version))
+    error_message = "node_version must be the exact string \"24\" (major version only). The bootstrap template internally resolves this to a pinned exact Node.js 24 release verified by hardcoded SHA-256 checksum; it is not a pass-through for arbitrary Node.js versions."
   }
 }
 

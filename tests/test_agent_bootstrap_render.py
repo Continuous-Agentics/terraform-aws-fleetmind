@@ -24,7 +24,7 @@ def render() -> str:
         "fleet_name": "test-fleet",
         "agent_id": "worker",
         "openclaw_version": "latest",
-        "node_version": "24.18.0",
+        "node_version": "24",
         "aws_region": "us-west-2",
         "fleetmind_version": "latest",
         "fleetmind_package": "@continuous-agentics/fleetmind",

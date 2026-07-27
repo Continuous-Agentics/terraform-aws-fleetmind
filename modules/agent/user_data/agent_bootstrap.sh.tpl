@@ -12,14 +12,15 @@ set -euo pipefail
 #   fleet_name       – fleet namespace (used for SecretsManager paths)
 #   agent_id         – unique agent identifier (matches fleet.yaml id)
 #   openclaw_version – npm version to install ("latest" or pinned)
-#   node_version     – exact Node.js release, major.minor.patch (e.g. "24.18.0")
+#   node_version     – Node.js major version only (e.g. "24"); internally
+#                      mapped below to a pinned exact release/checksum pair
 #   aws_region       – AWS region for SecretsManager calls
 # =============================================================================
 
 FLEET_NAME="${fleet_name}"
 AGENT_ID="${agent_id}"
 AWS_REGION="${aws_region}"
-NODE_VERSION="${node_version}"
+NODE_MAJOR="${node_version}"
 OPENCLAW_VERSION="${openclaw_version}"
 FLEETMIND_VERSION="${fleetmind_version}"
 
@@ -70,8 +71,24 @@ echo "[bootstrap] amazon-ssm-agent: $(systemctl is-active amazon-ssm-agent)"
 # verified against a checksum hardcoded in this script (sourced by hand from
 # nodejs.org's published SHASUMS256.txt for this exact release) -- this script
 # never fetches a checksum file over the network and trusts it sight unseen
-# (no TOFU). Bump NODE_VERSION and the two checksums below together.
-echo "[bootstrap] STAGE 3: Node.js $${NODE_VERSION} install starting at $(date)"
+# (no TOFU).
+#
+# The operator-facing node_version input (NODE_MAJOR) is major-version-only
+# (e.g. "24"); it is resolved here to the exact pinned release this bootstrap
+# has verified checksums for. Bumping the pinned release requires updating
+# NODE_VERSION_FOR_MAJOR below *and* the checksum table together -- never
+# derive an installable version from NODE_MAJOR alone.
+case "$${NODE_MAJOR}" in
+  24)
+    NODE_VERSION="24.18.0"
+    ;;
+  *)
+    echo "[bootstrap] FATAL: no pinned exact release for node_version (major)=$${NODE_MAJOR}. Only major version \"24\" is currently supported -- add a pinned release + checksums to modules/agent/user_data/agent_bootstrap.sh.tpl before changing node_version." >&2
+    exit 1
+    ;;
+esac
+
+echo "[bootstrap] STAGE 3: Node.js $${NODE_VERSION} (major $${NODE_MAJOR}) install starting at $(date)"
 
 case "$(uname -m)" in
   x86_64)
@@ -88,8 +105,9 @@ esac
 
 # Official SHA-256 checksums for node-v$${NODE_VERSION}-linux-{x64,arm64}.tar.gz,
 # copied by hand from https://nodejs.org/dist/v$${NODE_VERSION}/SHASUMS256.txt.
-# Update both entries whenever NODE_VERSION is bumped; installation refuses to
-# proceed for any version/arch pair without a pinned entry here.
+# Update both entries whenever the pinned NODE_VERSION above is bumped;
+# installation refuses to proceed for any version/arch pair without a pinned
+# entry here.
 case "$${NODE_VERSION}-$${NODE_ARCH}" in
   24.18.0-x64)
     NODE_SHA256="783130984963db7ba9cbd01089eaf2c2efb055c7c1693c943174b967b3050cb8"
@@ -98,7 +116,7 @@ case "$${NODE_VERSION}-$${NODE_ARCH}" in
     NODE_SHA256="6b4484c2190274175df9aa8f28e2d758a819cb1c1fe6ab481e2f95b463ab8508"
     ;;
   *)
-    echo "[bootstrap] FATAL: no pinned SHA-256 checksum for node_version=$${NODE_VERSION} arch=$${NODE_ARCH}. Refusing to install an unverified Node.js binary -- add a checksum entry (from https://nodejs.org/dist/v$${NODE_VERSION}/SHASUMS256.txt) to modules/agent/user_data/agent_bootstrap.sh.tpl before changing node_version." >&2
+    echo "[bootstrap] FATAL: no pinned SHA-256 checksum for resolved node version=$${NODE_VERSION} arch=$${NODE_ARCH}. Refusing to install an unverified Node.js binary -- add a checksum entry (from https://nodejs.org/dist/v$${NODE_VERSION}/SHASUMS256.txt) to modules/agent/user_data/agent_bootstrap.sh.tpl before changing the pinned release." >&2
     exit 1
     ;;
 esac

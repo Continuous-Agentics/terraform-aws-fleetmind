@@ -52,12 +52,12 @@ variable "openclaw_version" {
 }
 
 variable "node_version" {
-  description = "Exact Node.js release for the bootstrap script (major.minor.patch, e.g. \"24.18.0\"). Installed from an official nodejs.org tarball verified against a hardcoded SHA-256 checksum — see the root module's node_version variable for the validation contract."
+  description = "Node.js major version for the bootstrap script (major only, e.g. \"24\"). Internally mapped in agent_bootstrap.sh.tpl to a pinned exact Node.js release, installed from an official nodejs.org tarball verified against a hardcoded SHA-256 checksum — see the root module's node_version variable for the validation contract."
   type        = string
 
   validation {
-    condition     = can(regex("^24\\.(1[5-9]|[2-9][0-9]|[1-9][0-9]{2,})\\.[0-9]+$", var.node_version))
-    error_message = "node_version must be an exact Node.js 24.x release with minor version >= 24.15 (e.g. \"24.18.0\"). Update the hardcoded SHA-256 checksums in modules/agent/user_data/agent_bootstrap.sh.tpl before bumping this value."
+    condition     = can(regex("^24$", var.node_version))
+    error_message = "node_version must be the exact string \"24\" (major version only). The bootstrap template internally resolves this to a pinned exact Node.js 24 release verified by hardcoded SHA-256 checksum."
   }
 }
 
