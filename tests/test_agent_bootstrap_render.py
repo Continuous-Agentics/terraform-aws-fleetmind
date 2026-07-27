@@ -99,8 +99,14 @@ def main() -> int:
         "echo \"[bootstrap] npm $(npm --version) available on $RUNTIME_PATH\"",
         "npm install -g \"$OPENCLAW_PKG\"",
         "runuser -u \"$OPENCLAW_USER\" -- env HOME=\"$WORKSPACE_DIR\" PATH=\"$RUNTIME_PATH\" openclaw plugins install @openclaw/slack --force",
+        # Standard OpenClaw layout: workspace lives under the OS account home,
+        # not a separate /opt path.
+        'WORKSPACE_BASE="$OPENCLAW_HOME/.openclaw/workspace"',
     ):
         require(rendered, expected)
+
+    if "/opt/openclaw" in rendered:
+        raise AssertionError("Rendered bootstrap must not reference the legacy /opt/openclaw workspace path")
 
     gateway = section(
         rendered,

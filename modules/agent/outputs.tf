@@ -35,7 +35,7 @@ output "provider_secret_names" {
 
 output "workspace_path" {
   description = "Workspace directory path on the instance."
-  value       = "/opt/openclaw/workspace/${var.name}"
+  value       = "/home/openclaw/.openclaw/workspace/${var.name}"
 }
 
 output "service_name" {

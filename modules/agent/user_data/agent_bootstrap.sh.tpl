@@ -24,12 +24,12 @@ OPENCLAW_VERSION="${openclaw_version}"
 FLEETMIND_VERSION="${fleetmind_version}"
 
 OPENCLAW_USER="openclaw"
-# OS account home: holds the user manager units and FleetMind credential file.
+# OS account home. Standard OpenClaw layout: this IS the OpenClaw HOME —
+# config/state at $OPENCLAW_HOME/.openclaw/openclaw.json, workspace at
+# $OPENCLAW_HOME/.openclaw/workspace/<agent_id>. Matches the same contract
+# 'fleetmind up's local/ssh targets already use; AWS is no longer a special case.
 OPENCLAW_HOME="/home/openclaw"
-# Application-state home: FleetMind deploys OpenClaw configuration here.
-# Do not move this contract to the OS account home without a coordinated
-# FleetMind CLI/deploy migration.
-WORKSPACE_BASE="/opt/openclaw/workspace"
+WORKSPACE_BASE="$OPENCLAW_HOME/.openclaw/workspace"
 WORKSPACE_DIR="$WORKSPACE_BASE/$AGENT_ID"
 RUNTIME_PATH="/usr/local/bin:/usr/bin:/bin"
 ENV_FILE="$OPENCLAW_HOME/.config/fleetmind/agent.env"
@@ -87,6 +87,9 @@ fi
 # Keep the directory private even when it already exists from a prior bootstrap.
 install -d -o "$OPENCLAW_USER" -g "$OPENCLAW_USER" -m 0700 "$OPENCLAW_HOME/.config/fleetmind"
 chmod 0700 "$OPENCLAW_HOME/.config/fleetmind"
+# Workspace lives under the OS account home (standard OpenClaw layout). This
+# also creates $OPENCLAW_HOME/.openclaw as a side effect, which is fine — the
+# plugin install below (stage 7a) writes into it directly, no symlink needed.
 install -d -o "$OPENCLAW_USER" -g "$OPENCLAW_USER" -m 0755 "$WORKSPACE_DIR"
 loginctl enable-linger "$OPENCLAW_USER"
 
@@ -130,12 +133,17 @@ fleetmind --version
 echo "[bootstrap] STAGE 7: workspace mkdir starting at $(date)"
 mkdir -p "$WORKSPACE_DIR"
 chown -R "$OPENCLAW_USER:$OPENCLAW_USER" "$WORKSPACE_DIR"
-echo "[bootstrap] Workspace dir: $WORKSPACE_DIR (root volume)"
+echo "[bootstrap] Workspace dir: $WORKSPACE_DIR (root volume, under \$OPENCLAW_HOME)"
 
 echo "[bootstrap] STAGE 7a: @openclaw/slack plugin install starting at $(date)"
-# Must run after the runtime account and workspace exist. FleetMind's current
-# deployment contract places OpenClaw application state at $WORKSPACE_DIR, so
-# use it as HOME rather than creating a ~/.openclaw symlink under the OS home.
+# Must run after the runtime account and workspace exist. FleetMind's deployment
+# contract places gateway application state (openclaw.json) at
+# $WORKSPACE_DIR/.openclaw/, delivered by 'fleetmind push fleet' / pull-self —
+# so the gateway process's real HOME must be $WORKSPACE_DIR (see the systemd
+# units below), not $OPENCLAW_HOME. Match that here so the plugin installer
+# writes into the same .openclaw/ the gateway will actually read at runtime.
+# NOTE: $WORKSPACE_DIR itself now lives under $OPENCLAW_HOME (no more /opt
+# split) — only the root moved, not this workspace-as-HOME mechanism.
 runuser -u "$OPENCLAW_USER" -- env HOME="$WORKSPACE_DIR" PATH="$RUNTIME_PATH" openclaw plugins install @openclaw/slack --force
 # Remove the stub openclaw.json created by plugins install — it only contains
 # the plugin entry and lacks gateway.mode, causing OpenClaw to refuse startup.
@@ -279,9 +287,9 @@ echo "[bootstrap] STAGE 8b: gh-app-token install starting at $(date)"
 
 # Write agent identity file so gh-app-token + fleetmind pull-self can discover
 # FLEET_NAME / AGENT_ID / WORKSPACE_BASE. WORKSPACE_BASE is read by pull-self
-# to locate the agent workspace; without it pull-self falls back to
-# /opt/openclaw/workspace (which matches, but the explicit value is safer and
-# allows future per-agent overrides without a bootstrap change).
+# to locate the agent workspace; fleetmind CLI treats a missing/blank value as
+# a hard error (no silent fallback), so this line must always be present and
+# accurate for the host's actual on-disk workspace root.
 mkdir -p /etc/fleetmind
 cat > /etc/fleetmind/agent.env << AGENTENV_EOF
 FLEET_NAME=$FLEET_NAME
@@ -461,8 +469,9 @@ WorkingDirectory=$WORKSPACE_DIR
 Restart=always
 RestartSec=10
 
-# OpenClaw application state remains in FleetMind's deployed workspace. The
-# user unit and credential file themselves stay under the OS account home.
+# OpenClaw application state (gateway config, memory, plugins) remains in
+# FleetMind's deployed workspace, now nested under the OS account home
+# rather than a separate /opt path.
 Environment=HOME=$WORKSPACE_DIR
 Environment=PATH=$RUNTIME_PATH
 
