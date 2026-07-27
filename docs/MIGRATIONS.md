@@ -1,12 +1,8 @@
 # Migrations
 
-Per-version notes on what callers need to do when bumping `?ref=` in their `main.tf`. The format for each entry:
+Per-version notes for bumping `?ref=` in your `main.tf`: breaking changes (state mv or recreate), new optional variables, and behavioral changes that could surprise `terraform plan`.
 
-- **Breaking changes** — variables removed/renamed, outputs renamed, resource addresses changed (require state mv or apply will recreate).
-- **New optional variables** — additions you can adopt at your own pace.
-- **Behavioral changes** — module logic differences that don't change the API but might surprise you in `terraform plan`.
-
-If your `terraform plan` after a version bump shows unexpected destroy+create on resources you don't want destroyed, *stop and read the matching entry below* before applying.
+If a version bump shows unexpected destroy+create, stop and read the matching entry below before applying.
 
 ---
 
@@ -19,7 +15,7 @@ If your `terraform plan` after a version bump shows unexpected destroy+create on
 
 ### Operator action
 
-Use this module with FleetMind CLI `0.10.1` or newer and a `fleetmind-template` baseline that no longer requires GitHub Packages setup.
+Use FleetMind CLI `0.10.1`+ and a `fleetmind-template` baseline that no longer requires GitHub Packages setup.
 
 ```hcl
 module "fleetmind" {
@@ -28,22 +24,18 @@ module "fleetmind" {
 }
 ```
 
-Then run:
-
 ```bash
 terraform init -upgrade
 terraform plan
 ```
 
-Expect instance replacement if your existing launch templates/user data were created from a GitHub-Packages bootstrap version.
+Expect instance replacement if existing launch templates/user data came from a GitHub-Packages bootstrap version.
 
 ---
 
 ## v0.1.6
 
-The first entry baseline. No migration from a previous version is documented here yet because v0.1.x is the first tagged minor series — operators consuming pre-v0.1.0 commits were on `?ref=main`, not on a tag, and are expected to bump to `?ref=v0.1.6` cleanly without state surgery.
-
-**To bump from `?ref=main` to `?ref=v0.1.6`:**
+First tagged minor series — operators on pre-v0.1.0 commits were on `?ref=main`, not a tag, and can bump to `?ref=v0.1.6` cleanly without state surgery:
 
 ```hcl
 module "fleetmind" {
@@ -53,18 +45,18 @@ module "fleetmind" {
 }
 ```
 
-Then `terraform init -upgrade && terraform plan`. Expect zero changes if you were on a recent `main`.
+`terraform init -upgrade && terraform plan` — expect zero changes if you were on a recent `main`.
 
 ---
 
 ## Future entries
 
-When `v0.2.0` (or higher) ships, this doc will gain a top entry covering what changed. Operators on a `v0.1.x` pin can read that entry, decide whether to upgrade, and follow the documented migration path. Until then, this stub is a placeholder so the cross-links resolve.
+When `v0.2.0`+ ships, this doc gains a top entry covering what changed and the migration path.
 
 ---
 
 ## Conventions
 
 - **Patch (`v0.1.x`):** No breaking changes. Variable additions allowed if defaulted to backward-compatible behavior.
-- **Minor (`v0.x.0`):** May include breaking changes; each must have a migration entry below.
-- **Major (`vx.0.0`):** Module-shape changes (new submodules, removed submodules, large input renames). Migration entries are mandatory.
+- **Minor (`v0.x.0`):** May include breaking changes; each needs a migration entry.
+- **Major (`vx.0.0`):** Module-shape changes (new/removed submodules, large input renames). Migration entries mandatory.

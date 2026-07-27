@@ -1,19 +1,19 @@
 # agent submodule
 
-Provisions one Fleetmind bot's complete AWS footprint:
+Provisions one FleetMind bot's AWS footprint:
 
-- *EC2 instance* — Amazon Linux 2023, private subnet, SSM-managed, bootstrapped via `user_data/agent_bootstrap.sh.tpl`.
-- *IAM role + instance profile* — least-privilege scoping for SSM, CloudWatch Logs, this agent's secrets, the fleet ContextStore table (optional), and GitHub App SSM params.
-- *Secrets Manager secrets* — per-agent placeholders for Slack tokens and Anthropic API key (operator populates real values out-of-band; `lifecycle.ignore_changes` preserves them).
+- **EC2 instance** — Amazon Linux 2023, private subnet, SSM-managed, bootstrapped via `user_data/agent_bootstrap.sh.tpl`.
+- **IAM role + instance profile** — least-privilege scoping for SSM, CloudWatch Logs, this agent's secrets, the fleet ContextStore table (optional), and GitHub App SSM params.
+- **Secrets Manager secrets** — per-agent placeholders for Slack tokens and the model-provider API key (operator populates real values out-of-band; `lifecycle.ignore_changes` preserves them).
 
-Intended to be invoked from the root `terraform-aws-fleetmind` module via `for_each` over the agent names. Cross-cutting policies (task-ledger PM/worker grants) are attached separately by the `task-ledger` submodule using `iam_role_name` from this module.
+Invoked from the root `terraform-aws-fleetmind` module via `for_each` over agent names. Cross-cutting policies (task-ledger PM/worker grants) are attached separately by the `task-ledger` submodule using this module's `iam_role_name` output.
 
 ## Key design choices
 
-- *OpenClaw runtime account.* Bootstrap idempotently creates or reconciles an `openclaw` Unix account (`/home/openclaw`, Bash), installs Node/npm and Docker first, and grants the account Docker-group access. Docker is intentionally available for agent tools; this module does not model a locked-down service account.
-- *User services, not root-owned daemon processes.* The gateway and NATS subscriber are `systemd --user` units in `/home/openclaw/.config/systemd/user/`. That OS account home also holds the user-owned fetched-secret environment file. Bootstrap enables lingering so the user manager starts at boot; normal start/restart, subscriber connectivity, and workspace pulls run as `openclaw` without sudo.
-- *Workspace compatibility.* The deployed workspace remains `/opt/openclaw/workspace/<agent>` for compatibility with the current FleetMind renderer. It is the application-state HOME for the Slack plugin install, OpenClaw gateway, and NATS subscriber, so `.openclaw` remains there. Bootstrap intentionally does not create a `/home/openclaw/.openclaw` symlink: it may be dangling before deployment and blocks plugin installation. Moving application state to the OS account home requires a coordinated FleetMind CLI/deploy-contract migration.
-- *Operator login shell.* Operators use `sudo -iu openclaw`, which loads a generated FleetMind-only profile from `/home/openclaw/.config/fleetmind/openclaw-aliases.sh`. `ocalias` lists the available concise gateway and NATS commands (`ocstatus`, `oclog`, `octail`, `ocnatsstatus`, `ocnatslog`, and `ocnatstail`); it does not import local operator configuration or secrets.
-- *`context_store_table_arn` is optional.* Pass empty string when the fleet uses a non-DDB context-store backend; the DDB IAM policy is skipped.
-- *`shared_secret_arns` (list)* — caller-supplied additional Secrets Manager ARNs to grant read access. Typically used for the RDS-managed master-user secret (`rds!db-<random>`) whose name AWS owns.
-- *Hardcoded SSM paths under `/fleetmind/...`* — these match the agent runtime's expectations. Not a variable today; revisit if the runtime ever needs configurable paths.
+- **OpenClaw runtime account.** Bootstrap idempotently creates/reconciles an `openclaw` Unix account (`/home/openclaw`, Bash), installs Node/npm and Docker, grants Docker-group access. Docker is intentionally available for agent tools.
+- **User services, not root-owned daemons.** Gateway and NATS subscriber are `systemd --user` units in `/home/openclaw/.config/systemd/user/`. Lingering starts the user manager at boot; start/restart and workspace pulls run as `openclaw` without sudo.
+- **Workspace compatibility.** Deployed workspace stays `/opt/openclaw/workspace/<agent>` — HOME for the Slack plugin, gateway, and NATS subscriber (`.openclaw` lives there). Bootstrap does not create a `/home/openclaw/.openclaw` symlink (would dangle before deployment). Moving app state to the OS account home needs a coordinated FleetMind CLI/deploy-contract migration.
+- **Operator login shell.** `sudo -iu openclaw` loads a generated FleetMind-only profile (`/home/openclaw/.config/fleetmind/openclaw-aliases.sh`). `ocalias` lists commands (`ocstatus`, `oclog`, `octail`, `ocnatsstatus`, `ocnatslog`, `ocnatstail`) — no local operator config/secrets imported.
+- **`context_store_table_arn` optional** — empty string skips the DDB IAM policy for non-DDB context-store backends.
+- **`shared_secret_arns` (list)** — extra Secrets Manager ARNs to grant read access, typically the RDS-managed master-user secret (`rds!db-<random>`).
+- **Hardcoded SSM paths under `/fleetmind/...`** match the agent runtime's expectations — not a variable today.
