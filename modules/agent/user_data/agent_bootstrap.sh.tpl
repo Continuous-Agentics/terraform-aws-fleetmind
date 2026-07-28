@@ -133,8 +133,12 @@ fleetmind --version
 # Workspace lives on the EC2 root volume. Persistent state belongs in the
 # shared substrates (task-ledger DDB, context-store DDB, narratives S3).
 echo "[bootstrap] STAGE 7: workspace mkdir starting at $(date)"
+# mkdir -p above can create the .openclaw state root as root. Hand ownership of
+# the complete state tree to the runtime account before any unprivileged
+# OpenClaw command runs; the private root mode protects config and plugin state.
 mkdir -p "$WORKSPACE_DIR"
-chown -R "$OPENCLAW_USER:$OPENCLAW_USER" "$WORKSPACE_DIR"
+chown -R "$OPENCLAW_USER:$OPENCLAW_USER" "$OPENCLAW_HOME/.openclaw"
+chmod 0700 "$OPENCLAW_HOME/.openclaw"
 echo "[bootstrap] Workspace dir: $WORKSPACE_DIR (root volume)"
 
 echo "[bootstrap] STAGE 7a: @openclaw/slack plugin install starting at $(date)"
