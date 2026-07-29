@@ -106,6 +106,16 @@ def main() -> int:
     ):
         require(rendered, expected)
 
+    # Creating the workspace as root also creates its .openclaw parent. The
+    # full state root—not only workspace—must be handed to the runtime user
+    # before the first unprivileged OpenClaw command can create plugin/npm state.
+    state_handoff = 'chown -R "$OPENCLAW_USER:$OPENCLAW_USER" "$OPENCLAW_HOME/.openclaw"'
+    plugin_install = 'runuser -u "$OPENCLAW_USER" -- env HOME="$OPENCLAW_HOME" PATH="$RUNTIME_PATH" openclaw plugins install @openclaw/slack --force'
+    require(rendered, state_handoff)
+    require(rendered, 'chmod 0700 "$OPENCLAW_HOME/.openclaw"')
+    if rendered.index(state_handoff) > rendered.index(plugin_install):
+        raise AssertionError("OpenClaw state ownership must be handed off before plugin installation")
+
     if "/opt/openclaw" in rendered:
         raise AssertionError("Rendered bootstrap must not reference the legacy /opt/openclaw workspace path")
     if "WORKSPACE_BASE=\"" in rendered:
