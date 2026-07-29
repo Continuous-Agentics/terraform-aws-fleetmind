@@ -52,8 +52,13 @@ variable "openclaw_version" {
 }
 
 variable "node_version" {
-  description = "Node.js major version for the bootstrap script (nvm install)."
+  description = "Node.js major version for the bootstrap script (major only, e.g. \"24\"), passed straight through to NodeSource's setup_<major>.x script (curl -fsSL https://rpm.nodesource.com/setup_<major>.x | bash -, then dnf install -y nodejs) — see the root module's node_version variable for the validation contract."
   type        = string
+
+  validation {
+    condition     = can(regex("^24$", var.node_version))
+    error_message = "node_version must be the exact string \"24\" (major version only). This is passed to NodeSource's setup_<major>.x bootstrap script."
+  }
 }
 
 variable "fleetmind_version" {

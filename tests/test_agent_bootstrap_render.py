@@ -24,7 +24,7 @@ def render() -> str:
         "fleet_name": "test-fleet",
         "agent_id": "worker",
         "openclaw_version": "latest",
-        "node_version": "22",
+        "node_version": "24",
         "aws_region": "us-west-2",
         "fleetmind_version": "latest",
         "fleetmind_package": "@continuous-agentics/fleetmind",
@@ -97,6 +97,9 @@ def main() -> int:
         'install -d -o "$OPENCLAW_USER" -g "$OPENCLAW_USER" -m 0700 "$OPENCLAW_HOME/.config/fleetmind"',
         'chmod 0700 "$OPENCLAW_HOME/.config/fleetmind"',
         "echo \"[bootstrap] npm $(npm --version) available on $RUNTIME_PATH\"",
+        # NodeSource setup script + package install (major version passed through).
+        'curl -fsSL "https://rpm.nodesource.com/setup_${NODE_VERSION}.x" | bash -',
+        "dnf install -y nodejs",
         "npm install -g \"$OPENCLAW_PKG\"",
         # Standard OpenClaw layout, one agent per host: the plugin installer's
         # HOME is the OS account home itself, not a nested per-agent workspace.

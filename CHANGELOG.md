@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Always grant agent roles read/list access to the fleet bucket's `deploy-staging/` prefix. `fleetmind push fleet` uses this prefix for every fleet, including fleets with `delegation_enabled = false`.
+- Install Node.js via NodeSource's standard `setup_<major>.x` bootstrap script (`curl -fsSL https://rpm.nodesource.com/setup_${NODE_VERSION}.x | bash -` then `dnf install -y nodejs`). `node_version` stays a major-version-only input (default `"24"`, unchanged from before).
 
 ### Changed
 - Install FleetMind from public npm during agent bootstrap; remove the shared GitHub Packages PAT SSM read policy from agent roles.

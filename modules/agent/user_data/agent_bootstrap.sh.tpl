@@ -12,7 +12,8 @@ set -euo pipefail
 #   fleet_name       – fleet namespace (used for SecretsManager paths)
 #   agent_id         – unique agent identifier (matches fleet.yaml id)
 #   openclaw_version – npm version to install ("latest" or pinned)
-#   node_version     – Node.js major version (e.g. "22")
+#   node_version     – Node.js major version (e.g. "24"), passed straight
+#                      through to NodeSource's setup_<major>.x script
 #   aws_region       – AWS region for SecretsManager calls
 # =============================================================================
 

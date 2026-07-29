@@ -50,9 +50,14 @@ variable "openclaw_version" {
 }
 
 variable "node_version" {
-  description = "Node.js major version to install via NodeSource RPMs."
+  description = "Node.js major version to install on FleetMind agent instances via NodeSource RPMs (major only, e.g. \"24\"). Passed straight through to NodeSource's setup_<major>.x script (curl -fsSL https://rpm.nodesource.com/setup_<major>.x | bash -, then dnf install -y nodejs) in modules/agent/user_data/agent_bootstrap.sh.tpl. Only \"24\" is supported today."
   type        = string
-  default     = "22"
+  default     = "24"
+
+  validation {
+    condition     = can(regex("^24$", var.node_version))
+    error_message = "node_version must be the exact string \"24\" (major version only). This is passed to NodeSource's setup_<major>.x bootstrap script."
+  }
 }
 
 variable "allowed_ssh_cidrs" {
