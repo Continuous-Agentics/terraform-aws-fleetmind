@@ -1,5 +1,18 @@
 # terraform-aws-fleetmind
 
+> ## Deprecated — read-only migration redirect
+>
+> New FleetMind Terraform development now lives in the
+> [`Continuous-Agentics/fleetmind`](https://github.com/Continuous-Agentics/fleetmind)
+> monorepo under [`infra/terraform`](https://github.com/Continuous-Agentics/fleetmind/tree/main/infra/terraform).
+> This repository is retained read-only for existing pinned consumers and
+> historical releases; no new features or releases will be published here.
+>
+> Do not repoint an existing fleet state until the FleetMind consolidation
+> release is published. The state-preserving migration wrapper, validation
+> steps, and release-tagged source are documented in
+> [`fleetmind/docs/terraform/MIGRATIONS.md`](https://github.com/Continuous-Agentics/fleetmind/blob/main/docs/terraform/MIGRATIONS.md).
+
 Terraform module for [FleetMind](https://github.com/Continuous-Agentics/fleetmind) — multi-bot fleet infrastructure on AWS.
 
 Provisions per-agent EC2 instances, a DynamoDB ContextStore, optional task-ledger delegation primitives (DynamoDB + S3 + IAM), per-agent IAM roles, VPC + endpoints, and security groups.
