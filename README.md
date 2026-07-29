@@ -1,5 +1,18 @@
 # terraform-aws-fleetmind
 
+> ## Deprecated — read-only migration redirect
+>
+> New FleetMind Terraform development now lives in the
+> [`Continuous-Agentics/fleetmind`](https://github.com/Continuous-Agentics/fleetmind)
+> monorepo under [`infra/terraform`](https://github.com/Continuous-Agentics/fleetmind/tree/main/infra/terraform).
+> This repository is retained read-only for existing pinned consumers and
+> historical releases; no new features or releases will be published here.
+>
+> Do not repoint an existing fleet state until the FleetMind consolidation
+> release is published. The state-preserving migration wrapper, validation
+> steps, and release-tagged source are documented in
+> [`fleetmind/docs/terraform/MIGRATIONS.md`](https://github.com/Continuous-Agentics/fleetmind/blob/main/docs/terraform/MIGRATIONS.md).
+
 Terraform module for [FleetMind](https://github.com/Continuous-Agentics/fleetmind) — multi-bot fleet infrastructure on AWS.
 
 Provisions per-agent EC2 instances, a DynamoDB ContextStore, optional task-ledger delegation primitives (DynamoDB + S3 + IAM), per-agent IAM roles, VPC + endpoints, and security groups.
@@ -75,7 +88,7 @@ CLI workspaces (`terraform workspace new <fleet>`) are for ephemeral/dev fleets 
 
 Each host runs a user-owned OpenClaw runtime. Bootstrap installs Node/npm and Docker, then idempotently creates/reconciles the `openclaw` account (`/home/openclaw`, Bash, Docker-group access). Gateway and NATS subscriber run as `systemd --user` services under that account (lingering keeps the user manager alive across boot). Normal operations don't need sudo.
 
-Workspace path: `/opt/openclaw/workspace/<agent>` — also HOME for the Slack plugin, gateway, and NATS subscriber (`.openclaw` lives there, not under `/home/openclaw`).
+Workspace path: `/home/openclaw/.openclaw/workspace` — also HOME for the Slack plugin, gateway, and NATS subscriber (`.openclaw` lives there, under the `openclaw` account's home). One agent per host, so there's no per-agent subdirectory — the agent id identifies the systemd service, Secrets Manager paths, and deploy artifacts, not a workspace path segment. Matches the standard `~/.openclaw` layout FleetMind's local/ssh targets already use.
 
 **Operator shell:** `sudo -iu openclaw`. Run `ocalias` to list generated aliases. Gateway: `ocstatus`/`oclog`/`octail`/`ocstart`/`ocstop`/`ocrestart`. NATS subscriber: `ocnatsstatus`/`ocnatslog`/`ocnatstail`/`ocnatsrestart`.
 

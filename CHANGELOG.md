@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- ⚠️ Agent bootstrap's `WORKSPACE_BASE` changes from `/opt/openclaw/workspace/<agent>` to `/home/openclaw/.openclaw/workspace` (no `<agent_id>` subdirectory — one agent per host), standardizing on the same `~/.openclaw` home/config/workspace layout FleetMind's local/ssh targets already use. The agent id is preserved only for the systemd service, Secrets Manager paths, and deploy-artifact identity. Coordinated with FleetMind CLI's `workspace_base` default change ([fleetmind#288](https://github.com/Continuous-Agentics/fleetmind/pull/288)). Not an automatic in-place migration for existing fleets — see `docs/MIGRATIONS.md`.
+
 ### Fixed
 - Always grant agent roles read/list access to the fleet bucket's `deploy-staging/` prefix. `fleetmind push fleet` uses this prefix for every fleet, including fleets with `delegation_enabled = false`.
 - Install Node.js via NodeSource's standard `setup_<major>.x` bootstrap script (`curl -fsSL https://rpm.nodesource.com/setup_${NODE_VERSION}.x | bash -` then `dnf install -y nodejs`). `node_version` stays a major-version-only input (default `"24"`, unchanged from before).
